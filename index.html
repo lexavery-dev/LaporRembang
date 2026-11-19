@@ -59,9 +59,9 @@
   </div>
 
   <!-- Navbar -->
-  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <a href="#" class="flex items-center gap-3 group">
+      <button type="button" onclick="switchMainTab('utama')" class="flex items-center gap-3 group text-left">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rembang-600 to-teal-600 flex items-center justify-center text-white font-extrabold text-lg shadow-sm group-hover:scale-105 transition">
           LR
         </div>
@@ -71,25 +71,26 @@
           </div>
           <p class="text-[11px] text-slate-500 font-medium mt-0.5">Kabupaten Rembang &bull; Jawa Tengah</p>
         </div>
-      </a>
+      </button>
 
-      <nav class="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
-        <a href="#buat-laporan" class="hover:text-rembang-600 transition">Buat Laporan</a>
-        <a href="#peta-kejadian" class="hover:text-rembang-600 transition">Peta Kejadian</a>
-        <a href="#daftar-laporan" class="hover:text-rembang-600 transition">Pantau Aduan</a>
-        <a href="#lacak-tiket" class="hover:text-rembang-600 transition">Lacak Tiket</a>
+      <!-- 3 Tab Navigasi Utama -->
+      <nav aria-label="Navigasi Tab" class="hidden md:flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200/80">
+        <button type="button" id="tab-btn-utama" onclick="switchMainTab('utama')" class="px-4 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-rembang-700 shadow-2xs">
+          1. Beranda &amp; Pelaporan
+        </button>
+        <button type="button" id="tab-btn-admin" onclick="switchMainTab('admin')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900 flex items-center gap-1.5">
+          <span id="tab-admin-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+          <span>2. Panel Admin</span>
+        </button>
+        <button type="button" id="tab-btn-pantau" onclick="switchMainTab('pantau')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900">
+          3. Pantau &amp; Lacak Tiket
+        </button>
       </nav>
 
       <div class="flex items-center gap-2.5">
         <button id="btn-quick-sos" type="button" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
           Darurat
-        </button>
-
-        <!-- Tombol Panel Admin selalu terlihat di Navbar -->
-        <button id="btn-toggle-admin-drawer" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
-          <span>Panel Admin</span>
         </button>
 
         <!-- Guest Auth Button -->
@@ -112,17 +113,265 @@
         </div>
       </div>
     </div>
+
+    <!-- Mobile 3-Tab Switcher Bar -->
+    <div class="md:hidden border-t border-slate-200/80 bg-slate-50 px-3 py-2">
+      <div class="grid grid-cols-3 gap-1.5">
+        <button type="button" id="mob-tab-utama" onclick="switchMainTab('utama')" class="py-2 px-2 rounded-lg text-[11px] font-extrabold text-center bg-rembang-600 text-white shadow-2xs transition">
+          1. Beranda &amp; Lapor
+        </button>
+        <button type="button" id="mob-tab-admin" onclick="switchMainTab('admin')" class="py-2 px-2 rounded-lg text-[11px] font-bold text-center bg-white text-slate-700 border border-slate-200 transition">
+          2. Panel Admin
+        </button>
+        <button type="button" id="mob-tab-pantau" onclick="switchMainTab('pantau')" class="py-2 px-2 rounded-lg text-[11px] font-bold text-center bg-white text-slate-700 border border-slate-200 transition">
+          3. Pantau &amp; Lacak
+        </button>
+      </div>
+    </div>
   </header>
 
-  <!-- Admin & Co-Admin Control Panel -->
-  <section id="admin-panel" class="hidden bg-slate-900 text-slate-100 border-b border-slate-800 scroll-mt-16">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+  <!-- ========================================================= -->
+  <!-- TAB 1: BERANDA & PELAPORAN (UTAMA + FORM LAPORAN)         -->
+  <!-- ========================================================= -->
+  <div id="view-tab-utama" class="space-y-10 pb-12">
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden bg-gradient-to-b from-rembang-50/80 via-white to-slate-50 pt-10 pb-12 sm:pt-12 sm:pb-14 border-b border-slate-200/70">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-7 space-y-5">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rembang-100/80 text-rembang-800 text-xs font-bold">
+              <span>Kota Garam &amp; Pesisir Pantura</span>
+              <span>&bull;</span>
+              <span>14 Kecamatan Terintegrasi</span>
+            </div>
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
+              Suara Warga untuk <span class="text-transparent bg-clip-text bg-gradient-to-r from-rembang-600 to-teal-600">Rembang</span> yang Lebih Cepat Tanggap.
+            </h1>
+            <p class="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
+              Laporkan kejadian darurat, kerusakan jalan Pantura maupun jalan desa, banjir rob pesisir, lampu PJU mati, hingga gangguan ketertiban di seluruh wilayah Kabupaten Rembang secara real-time.
+            </p>
+            <div class="flex flex-wrap items-center gap-3 pt-1">
+              <a href="#buat-laporan" class="px-6 py-3 rounded-xl bg-rembang-600 text-white font-bold text-sm hover:bg-rembang-700 shadow-md shadow-rembang-600/20 transition">
+                Isi Formulir Laporan
+              </a>
+              <button type="button" onclick="switchMainTab('pantau')" class="px-6 py-3 rounded-xl bg-white text-slate-700 font-bold text-sm border border-slate-300 hover:bg-slate-50 transition">
+                Pantau Aduan &amp; Lacak Tiket
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Summary Stats -->
+          <div class="lg:col-span-5">
+            <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Statistik Kejadian Rembang</h2>
+                <span id="firebase-status-badge" class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Firebase Connected</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3.5" id="stats-grid">
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <p class="text-xs font-semibold text-slate-500">Total Laporan</p>
+                  <p id="stat-total" class="text-2xl font-extrabold text-slate-900 mt-1">0</p>
+                </div>
+                <div class="p-4 rounded-xl bg-amber-50/70 border border-amber-100">
+                  <p class="text-xs font-semibold text-amber-700">Menunggu Verifikasi</p>
+                  <p id="stat-pending" class="text-2xl font-extrabold text-amber-700 mt-1">0</p>
+                </div>
+                <div class="p-4 rounded-xl bg-sky-50/70 border border-sky-100">
+                  <p class="text-xs font-semibold text-sky-700">Sedang Ditangani</p>
+                  <p id="stat-progress" class="text-2xl font-extrabold text-sky-700 mt-1">0</p>
+                </div>
+                <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100">
+                  <p class="text-xs font-semibold text-emerald-700">Selesai Ditindak</p>
+                  <p id="stat-resolved" class="text-2xl font-extrabold text-emerald-700 mt-1">0</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Cakupan: Lasem, Rembang, Kragan, Sarang, +10 Kec.</span>
+                <span class="font-semibold text-slate-700">Respon Rata-rata: 28 mnt</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workspace Pelaporan: Form Laporan (Terkunci sebelum login) + Peta -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid lg:grid-cols-12 gap-8 items-start">
+        <!-- Left: Form Pelaporan -->
+        <section id="buat-laporan" class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 scroll-mt-24 relative">
+          <div class="mb-6">
+            <span class="text-xs font-bold uppercase tracking-wider text-rembang-600">Formulir Pengaduan</span>
+            <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Laporkan Kejadian di Sekitar Anda</h2>
+            <p class="text-sm text-slate-500 mt-1">Login dengan akun Anda untuk membuka akses pengisian formulir laporan kejadian.</p>
+          </div>
+
+          <!-- Auth Gate Notice when not logged in -->
+          <div id="report-auth-gate" class="p-7 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-300 text-center space-y-3.5">
+            <div class="w-12 h-12 rounded-full bg-rembang-100 text-rembang-700 flex items-center justify-center mx-auto">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+            </div>
+            <h3 class="text-base font-extrabold text-slate-900">Kolom Laporan Terkunci</h3>
+            <p class="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+              Silakan <strong>Masuk / Daftar</strong> terlebih dahulu. Setelah berhasil login, seluruh kolom pengisian laporan kejadian di bawah ini akan otomatis terbuka.
+            </p>
+            <div class="pt-1">
+              <button type="button" id="btn-gate-login" class="px-5 py-2.5 rounded-xl bg-rembang-600 hover:bg-rembang-700 text-white font-bold text-xs shadow-sm transition">
+                Masuk / Daftar untuk Melapor
+              </button>
+            </div>
+          </div>
+
+          <!-- Report Form (Otomatis muncul setelah user selesai login) -->
+          <form id="report-form" class="hidden space-y-4">
+            <div class="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center justify-between text-xs">
+              <div>
+                <span class="text-slate-600">Akses Pelapor Aktif:</span>
+                <strong id="form-reporter-email" class="text-slate-900 ml-1">-</strong>
+              </div>
+              <span class="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">Siap Melapor</span>
+            </div>
+
+            <!-- Judul Kejadian -->
+            <div>
+              <label for="title" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Judul Kejadian *</label>
+              <input type="text" id="title" name="title" required placeholder="Contoh: Jalan berlubang parah di Jalur Pantura Kaliori" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500 focus:border-rembang-500 transition" />
+            </div>
+
+            <!-- Kategori & Urgensi -->
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label for="category" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Kategori Kejadian *</label>
+                <select id="category" name="category" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rembang-500">
+                  <option value="Infrastruktur &amp; Jalan">Infrastruktur &amp; Jalan</option>
+                  <option value="Bencana &amp; Banjir Rob">Bencana, Cuaca &amp; Banjir Rob</option>
+                  <option value="Lalu Lintas &amp; Laka">Lalu Lintas &amp; Kecelakaan</option>
+                  <option value="PJU &amp; Listrik">Lampu PJU &amp; Jaringan Listrik</option>
+                  <option value="Kebersihan &amp; Lingkungan">Sampah &amp; Lingkungan</option>
+                  <option value="Keamanan &amp; Ketertiban">Keamanan &amp; Ketertiban</option>
+                  <option value="Kesehatan &amp; Medis">Darurat Kesehatan &amp; Medis</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="urgency" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Tingkat Urgensi *</label>
+                <select id="urgency" name="urgency" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rembang-500">
+                  <option value="Darurat">Darurat (Butuh Penanganan Segera)</option>
+                  <option value="Tinggi">Tinggi (Membahayakan Warga)</option>
+                  <option value="Sedang" selected>Sedang (Perlu Perbaikan)</option>
+                  <option value="Rendah">Rendah (Aspirasi / Preventif)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Kecamatan & Desa/Kelurahan -->
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label for="kecamatan" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Kecamatan di Kab. Rembang *</label>
+                <select id="kecamatan" name="kecamatan" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rembang-500">
+                  <!-- Populated by JS with all 14 Kecamatan -->
+                </select>
+              </div>
+
+              <div>
+                <label for="desa" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Desa / Kelurahan / Patokan *</label>
+                <input type="text" id="desa" name="desa" required placeholder="Contoh: Desa Tasikagung / Dekat Alun-Alun" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500" />
+              </div>
+            </div>
+
+            <!-- Koordinat Lokasi -->
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-700">Titik Koordinat Lokasi</span>
+                <button type="button" id="btn-geolocate" class="inline-flex items-center gap-1.5 text-xs font-bold text-rembang-600 hover:text-rembang-800 transition">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                  Gunakan GPS Saya
+                </button>
+              </div>
+              <div class="grid grid-cols-2 gap-2.5">
+                <input type="text" id="lat" name="lat" readonly value="-6.7086" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 font-mono" />
+                <input type="text" id="lng" name="lng" readonly value="111.3418" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 font-mono" />
+              </div>
+              <p class="text-[11px] text-slate-500">Otomatis menyesuaikan kecamatan yang dipilih, atau klik langsung pada peta di samping.</p>
+            </div>
+
+            <!-- Kronologi -->
+            <div>
+              <label for="description" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Deskripsi &amp; Kronologi Kejadian *</label>
+              <textarea id="description" name="description" rows="3" required placeholder="Jelaskan kondisi terkini, perkiraan waktu kejadian, dan dampak di lapangan..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500"></textarea>
+            </div>
+
+            <!-- Foto Bukti -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Foto Bukti Lapangan (Opsional)</label>
+              <label for="photo" class="flex items-center justify-center gap-2 w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-rembang-500 bg-slate-50/60 hover:bg-rembang-50/40 px-4 py-3 text-xs font-semibold text-slate-600 cursor-pointer transition">
+                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
+                <span id="photo-label">Pilih atau ambil foto kejadian (JPG/PNG)</span>
+                <input type="file" id="photo" accept="image/*" class="hidden" />
+              </label>
+              <div id="photo-preview-wrap" class="hidden mt-2 relative rounded-xl overflow-hidden border border-slate-200">
+                <img id="photo-preview" src="" alt="Pratinjau foto" class="w-full h-36 object-cover" />
+                <button type="button" id="btn-remove-photo" class="absolute top-2 right-2 bg-slate-900/75 text-white text-xs px-2.5 py-1 rounded-lg hover:bg-slate-900">Hapus</button>
+              </div>
+            </div>
+
+            <!-- Identitas Pelapor -->
+            <div class="grid sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label for="reporter" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Nama Tampilan Pelapor</label>
+                <input type="text" id="reporter" name="reporter" placeholder="Otomatis dari nama akun" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500" />
+              </div>
+              <div>
+                <label for="phone" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">No. WhatsApp / HP</label>
+                <input type="tel" id="phone" name="phone" placeholder="08xx-xxxx-xxxx (untuk info tindak lanjut)" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500" />
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+              <input type="checkbox" id="anonymous" class="rounded border-slate-300 text-rembang-600 focus:ring-rembang-500" />
+              <label for="anonymous" class="text-xs text-slate-600">Sembunyikan nama saya di daftar laporan publik (Kirim sebagai Warga Anonim)</label>
+            </div>
+
+            <button type="submit" id="btn-submit-report" class="w-full py-3.5 px-6 rounded-xl bg-rembang-600 hover:bg-rembang-700 text-white font-bold text-sm shadow-md shadow-rembang-600/20 transition flex items-center justify-center gap-2">
+              <span>Kirim Laporan Kejadian</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+            </button>
+          </form>
+        </section>
+
+        <!-- Right: Peta Interaktif Kabupaten Rembang -->
+        <div class="lg:col-span-6 space-y-6">
+          <section id="peta-kejadian" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-24">
+            <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 class="text-lg font-extrabold text-slate-900">Peta Sebaran Kejadian Kab. Rembang</h2>
+                <p class="text-xs text-slate-500">Klik peta untuk memilih titik lokasi laporan baru, atau klik pin untuk detail.</p>
+              </div>
+              <span class="text-[11px] font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700">OpenStreetMap &bull; Rembang</span>
+            </div>
+            <div id="rembang-map" class="w-full h-[430px] z-10"></div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Darurat / Tinggi</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Sedang</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Selesai</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- TAB 2: PANEL KHUSUS ADMIN & CO-ADMIN                      -->
+  <!-- ========================================================= -->
+  <section id="view-tab-admin" class="hidden min-h-[75vh] bg-slate-900 text-slate-100 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
       <!-- Header Panel Admin -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div class="flex flex-wrap items-center gap-2.5">
             <span id="admin-level-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-              Panel Administrasi
+              Tab Khusus Admin
             </span>
             <span class="text-xs text-slate-400" id="admin-logged-email">Belum login sebagai petugas</span>
           </div>
@@ -136,32 +385,32 @@
           <button type="button" id="btn-sync-cloud" class="hidden px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 transition">
             Muat Ulang Data
           </button>
-          <button type="button" id="btn-close-admin-panel" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 transition">
-            Tutup Panel &times;
-          </button>
         </div>
       </div>
 
       <!-- Gerbang Login Khusus Admin (Tampil jika belum login atau bukan Admin/Co-Admin) -->
-      <div id="admin-access-gate" class="bg-slate-800/80 rounded-2xl border border-slate-700 p-6 sm:p-8 text-center max-w-2xl mx-auto space-y-4">
-        <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mx-auto">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+      <div id="admin-access-gate" class="bg-slate-800/80 rounded-2xl border border-slate-700 p-8 sm:p-12 text-center max-w-2xl mx-auto my-8 space-y-4">
+        <div class="w-14 h-14 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mx-auto">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
         </div>
-        <h3 id="admin-gate-title" class="text-lg font-extrabold text-white">Autentikasi Petugas Diperlukan</h3>
-        <p id="admin-gate-message" class="text-xs text-slate-300 leading-relaxed">
-          Panel ini khusus untuk <strong>Admin Utama (Level 1)</strong> dengan email <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code> atau <strong>Co-Admin (Level 2)</strong> yang telah didaftarkan.
+        <h3 id="admin-gate-title" class="text-xl font-extrabold text-white">Area Terbatas Petugas &amp; Admin</h3>
+        <p id="admin-gate-message" class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+          Tab ini khusus untuk <strong>Admin Utama (Level 1)</strong> dengan email <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code> atau <strong>Co-Admin (Level 2)</strong> yang telah didaftarkan.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <button type="button" id="btn-admin-gate-login" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-sm transition">
-            Login Akun Admin / Co-Admin
+          <button type="button" id="btn-admin-gate-login" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-sm transition">
+            Login sebagai Admin / Co-Admin
           </button>
           <button type="button" id="btn-admin-gate-switch" class="hidden px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition">
             Ganti Akun Lain
           </button>
+          <button type="button" onclick="switchMainTab('utama')" class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold transition">
+            Kembali ke Beranda
+          </button>
         </div>
       </div>
 
-      <!-- Konten Utama Panel Admin (Tampil jika terverifikasi sebagai Admin Lv.1 atau Co-Admin Lv.2) -->
+      <!-- Konten Utama Panel Admin (Otomatis terbuka saat Admin / Co-Admin sukses login) -->
       <div id="admin-authorized-content" class="hidden space-y-6">
         <!-- Ringkasan Statistik Cepat Admin -->
         <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -189,14 +438,12 @@
 
         <!-- Co-Admin Management (Level 1 Admin Only) -->
         <div id="coadmin-manager-box" class="hidden bg-slate-800/70 rounded-2xl border border-slate-700/80 p-5 space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 class="text-sm font-extrabold text-white flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                Manajemen Level 2: Co-Admin (Khusus Admin Utama)
-              </h3>
-              <p class="text-xs text-slate-400 mt-0.5">Tambahkan email petugas/operator yang diizinkan mengakses Panel Admin sebagai Co-Admin (dapat mengubah status &amp; instansi laporan, tanpa hak hapus laporan/kelola admin).</p>
-            </div>
+          <div>
+            <h3 class="text-sm font-extrabold text-white flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              Manajemen Level 2: Co-Admin (Khusus Admin Utama)
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Tambahkan email petugas/operator yang diizinkan mengakses Tab Admin sebagai Co-Admin (dapat mengubah status &amp; instansi laporan, tanpa hak hapus laporan/kelola admin).</p>
           </div>
 
           <form id="coadmin-form" class="flex flex-col sm:flex-row gap-2.5">
@@ -246,247 +493,30 @@
     </div>
   </section>
 
-  <!-- Hero Section -->
-  <section class="relative overflow-hidden bg-gradient-to-b from-rembang-50/80 via-white to-slate-50 pt-10 pb-12 sm:pt-14 sm:pb-16 border-b border-slate-200/70">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid lg:grid-cols-12 gap-8 items-center">
-        <div class="lg:col-span-7 space-y-5">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rembang-100/80 text-rembang-800 text-xs font-bold">
-            <span>Kota Garam &amp; Pesisir Pantura</span>
-            <span>&bull;</span>
-            <span>14 Kecamatan Terintegrasi</span>
-          </div>
-          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
-            Suara Warga untuk <span class="text-transparent bg-clip-text bg-gradient-to-r from-rembang-600 to-teal-600">Rembang</span> yang Lebih Cepat Tanggap.
-          </h1>
-          <p class="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
-            Laporkan kejadian darurat, kerusakan jalan Pantura maupun jalan desa, banjir rob pesisir, lampu PJU mati, hingga gangguan ketertiban di seluruh wilayah Kabupaten Rembang secara real-time.
-          </p>
-          <div class="flex flex-wrap items-center gap-3 pt-1">
-            <a href="#buat-laporan" class="px-6 py-3 rounded-xl bg-rembang-600 text-white font-bold text-sm hover:bg-rembang-700 shadow-md shadow-rembang-600/20 transition">
-              Kirim Laporan Sekarang
-            </a>
-            <a href="#peta-kejadian" class="px-6 py-3 rounded-xl bg-white text-slate-700 font-bold text-sm border border-slate-300 hover:bg-slate-50 transition">
-              Lihat Peta Kejadian
-            </a>
-          </div>
+  <!-- ========================================================= -->
+  <!-- TAB 3: PANTAU ADUAN PUBLIK & LACAK TIKET                  -->
+  <!-- ========================================================= -->
+  <div id="view-tab-pantau" class="hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 min-h-[75vh]">
+    <!-- Lacak Tiket -->
+    <section id="lacak-tiket" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-rembang-600">Pencarian Cepat</span>
+          <h2 class="text-lg font-extrabold text-slate-900 mt-0.5">Lacak Status Tiket Laporan</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Masukkan nomor tiket (contoh: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-mono">RBG-2026-104</code>) untuk mengecek progres penanganan.</p>
         </div>
-
-        <!-- Live Summary Stats -->
-        <div class="lg:col-span-5">
-          <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Statistik Kejadian Rembang</h2>
-              <span id="firebase-status-badge" class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Firebase Connected</span>
-            </div>
-            <div class="grid grid-cols-2 gap-3.5" id="stats-grid">
-              <div class="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <p class="text-xs font-semibold text-slate-500">Total Laporan</p>
-                <p id="stat-total" class="text-2xl font-extrabold text-slate-900 mt-1">0</p>
-              </div>
-              <div class="p-4 rounded-xl bg-amber-50/70 border border-amber-100">
-                <p class="text-xs font-semibold text-amber-700">Menunggu Verifikasi</p>
-                <p id="stat-pending" class="text-2xl font-extrabold text-amber-700 mt-1">0</p>
-              </div>
-              <div class="p-4 rounded-xl bg-sky-50/70 border border-sky-100">
-                <p class="text-xs font-semibold text-sky-700">Sedang Ditangani</p>
-                <p id="stat-progress" class="text-2xl font-extrabold text-sky-700 mt-1">0</p>
-              </div>
-              <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100">
-                <p class="text-xs font-semibold text-emerald-700">Selesai Ditindak</p>
-                <p id="stat-resolved" class="text-2xl font-extrabold text-emerald-700 mt-1">0</p>
-              </div>
-            </div>
-            <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Cakupan: Lasem, Rembang, Kragan, Sarang, +10 Kec.</span>
-              <span class="font-semibold text-slate-700">Respon Rata-rata: 28 mnt</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Main Workspace: Form + Map -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
-
-    <div class="grid lg:grid-cols-12 gap-8 items-start">
-      <!-- Left: Form Pelaporan -->
-      <section id="buat-laporan" class="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 scroll-mt-24 relative">
-        <div class="mb-6">
-          <span class="text-xs font-bold uppercase tracking-wider text-rembang-600">Formulir Pengaduan</span>
-          <h2 class="text-2xl font-extrabold text-slate-900 mt-1">Laporkan Kejadian di Sekitar Anda</h2>
-          <p class="text-sm text-slate-500 mt-1">Isi detail kejadian secara akurat agar tim lapangan di Kabupaten Rembang segera menuju lokasi.</p>
-        </div>
-
-        <!-- Auth Gate Notice when not logged in -->
-        <div id="report-auth-gate" class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
-          <div class="w-12 h-12 rounded-full bg-rembang-100 text-rembang-700 flex items-center justify-center mx-auto">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
-          </div>
-          <h3 class="text-base font-extrabold text-slate-900">Login Diperlukan untuk Mengirim Laporan</h3>
-          <p class="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-            Untuk mencegah laporan palsu (spam) dan memudahkan pelacakan status pengaduan Anda, silakan masuk menggunakan akun Google atau Email terlebih dahulu.
-          </p>
-          <div class="pt-1">
-            <button type="button" id="btn-gate-login" class="px-5 py-2.5 rounded-xl bg-rembang-600 hover:bg-rembang-700 text-white font-bold text-xs shadow-sm transition">
-              Masuk atau Daftar Akun Warga
-            </button>
-          </div>
-        </div>
-
-        <!-- Report Form (Shown when logged in) -->
-        <form id="report-form" class="hidden space-y-4">
-          <div class="p-3 rounded-xl bg-rembang-50/80 border border-rembang-100 flex items-center justify-between text-xs">
-            <div>
-              <span class="text-slate-500">Melapor sebagai:</span>
-              <strong id="form-reporter-email" class="text-rembang-900 ml-1">-</strong>
-            </div>
-            <span class="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded">Terverifikasi</span>
-          </div>
-
-          <!-- Judul Kejadian -->
-          <div>
-            <label for="title" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Judul Kejadian *</label>
-            <input type="text" id="title" name="title" required placeholder="Contoh: Jalan berlubang parah di Jalur Pantura Kaliori" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500 focus:border-rembang-500 transition" />
-          </div>
-
-          <!-- Kategori & Urgensi -->
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label for="category" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Kategori Kejadian *</label>
-              <select id="category" name="category" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rembang-500">
-                <option value="Infrastruktur &amp; Jalan">Infrastruktur &amp; Jalan</option>
-                <option value="Bencana &amp; Banjir Rob">Bencana, Cuaca &amp; Banjir Rob</option>
-                <option value="Lalu Lintas &amp; Laka">Lalu Lintas &amp; Kecelakaan</option>
-                <option value="PJU &amp; Listrik">Lampu PJU &amp; Jaringan Listrik</option>
-                <option value="Kebersihan &amp; Lingkungan">Sampah &amp; Lingkungan</option>
-                <option value="Keamanan &amp; Ketertiban">Keamanan &amp; Ketertiban</option>
-                <option value="Kesehatan &amp; Medis">Darurat Kesehatan &amp; Medis</option>
-              </select>
-            </div>
-
-            <div>
-              <label for="urgency" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Tingkat Urgensi *</label>
-              <select id="urgency" name="urgency" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rembang-500">
-                <option value="Darurat">Darurat (Butuh Penanganan Segera)</option>
-                <option value="Tinggi">Tinggi (Membahayakan Warga)</option>
-                <option value="Sedang" selected>Sedang (Perlu Perbaikan)</option>
-                <option value="Rendah">Rendah (Aspirasi / Preventif)</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Kecamatan & Desa/Kelurahan -->
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label for="kecamatan" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Kecamatan di Kab. Rembang *</label>
-              <select id="kecamatan" name="kecamatan" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rembang-500">
-                <!-- Populated by JS with all 14 Kecamatan -->
-              </select>
-            </div>
-
-            <div>
-              <label for="desa" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Desa / Kelurahan / Patokan *</label>
-              <input type="text" id="desa" name="desa" required placeholder="Contoh: Desa Tasikagung / Dekat Alun-Alun" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500" />
-            </div>
-          </div>
-
-          <!-- Koordinat Lokasi -->
-          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-700">Titik Koordinat Lokasi</span>
-              <button type="button" id="btn-geolocate" class="inline-flex items-center gap-1.5 text-xs font-bold text-rembang-600 hover:text-rembang-800 transition">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                Gunakan GPS Saya
-              </button>
-            </div>
-            <div class="grid grid-cols-2 gap-2.5">
-              <input type="text" id="lat" name="lat" readonly value="-6.7086" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 font-mono" />
-              <input type="text" id="lng" name="lng" readonly value="111.3418" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 font-mono" />
-            </div>
-            <p class="text-[11px] text-slate-500">Otomatis menyesuaikan kecamatan yang dipilih, atau klik langsung pada peta di samping.</p>
-          </div>
-
-          <!-- Kronologi -->
-          <div>
-            <label for="description" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Deskripsi &amp; Kronologi Kejadian *</label>
-            <textarea id="description" name="description" rows="3" required placeholder="Jelaskan kondisi terkini, perkiraan waktu kejadian, dan dampak di lapangan..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500"></textarea>
-          </div>
-
-          <!-- Foto Bukti -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Foto Bukti Lapangan (Opsional)</label>
-            <label for="photo" class="flex items-center justify-center gap-2 w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-rembang-500 bg-slate-50/60 hover:bg-rembang-50/40 px-4 py-3 text-xs font-semibold text-slate-600 cursor-pointer transition">
-              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
-              <span id="photo-label">Pilih atau ambil foto kejadian (JPG/PNG)</span>
-              <input type="file" id="photo" accept="image/*" class="hidden" />
-            </label>
-            <div id="photo-preview-wrap" class="hidden mt-2 relative rounded-xl overflow-hidden border border-slate-200">
-              <img id="photo-preview" src="" alt="Pratinjau foto" class="w-full h-36 object-cover" />
-              <button type="button" id="btn-remove-photo" class="absolute top-2 right-2 bg-slate-900/75 text-white text-xs px-2.5 py-1 rounded-lg hover:bg-slate-900">Hapus</button>
-            </div>
-          </div>
-
-          <!-- Identitas Pelapor -->
-          <div class="grid sm:grid-cols-2 gap-4 pt-1">
-            <div>
-              <label for="reporter" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Nama Tampilan Pelapor</label>
-              <input type="text" id="reporter" name="reporter" placeholder="Otomatis dari nama akun" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500" />
-            </div>
-            <div>
-              <label for="phone" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">No. WhatsApp / HP</label>
-              <input type="tel" id="phone" name="phone" placeholder="08xx-xxxx-xxxx (untuk info tindak lanjut)" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rembang-500" />
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 pt-1">
-            <input type="checkbox" id="anonymous" class="rounded border-slate-300 text-rembang-600 focus:ring-rembang-500" />
-            <label for="anonymous" class="text-xs text-slate-600">Sembunyikan nama saya di daftar laporan publik (Kirim sebagai Warga Anonim)</label>
-          </div>
-
-          <button type="submit" id="btn-submit-report" class="w-full py-3.5 px-6 rounded-xl bg-rembang-600 hover:bg-rembang-700 text-white font-bold text-sm shadow-md shadow-rembang-600/20 transition flex items-center justify-center gap-2">
-            <span>Kirim Laporan Kejadian</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+        <form id="track-form" class="flex gap-2 w-full md:w-auto md:min-w-[360px]">
+          <input type="text" id="track-input" placeholder="Masukkan kode tiket RBG-..." class="flex-1 rounded-xl border border-slate-300 px-3.5 py-2 text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-rembang-500" />
+          <button type="submit" class="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold transition">
+            Lacak
           </button>
         </form>
-      </section>
-
-      <!-- Right: Peta Interaktif Kabupaten Rembang + Lacak Tiket -->
-      <div class="lg:col-span-6 space-y-6">
-        <section id="peta-kejadian" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-24">
-          <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 class="text-lg font-extrabold text-slate-900">Peta Sebaran Kejadian Kab. Rembang</h2>
-              <p class="text-xs text-slate-500">Klik peta untuk memilih titik lokasi laporan baru, atau klik pin untuk detail.</p>
-            </div>
-            <span class="text-[11px] font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700">OpenStreetMap &bull; Rembang</span>
-          </div>
-          <div id="rembang-map" class="w-full h-[380px] z-10"></div>
-          <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-600">
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Darurat / Tinggi</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Sedang</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Selesai</span>
-          </div>
-        </section>
-
-        <!-- Lacak Tiket -->
-        <section id="lacak-tiket" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 scroll-mt-24">
-          <h3 class="text-base font-extrabold text-slate-900">Lacak Status Tiket Laporan</h3>
-          <p class="text-xs text-slate-500 mt-0.5 mb-3">Masukkan nomor tiket (contoh: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-mono">RBG-2026-104</code>) untuk mengecek progres penanganan.</p>
-          <form id="track-form" class="flex gap-2">
-            <input type="text" id="track-input" placeholder="Masukkan kode tiket RBG-..." class="flex-1 rounded-xl border border-slate-300 px-3.5 py-2 text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-rembang-500" />
-            <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold transition">
-              Lacak
-            </button>
-          </form>
-          <div id="track-result" class="hidden mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm"></div>
-        </section>
       </div>
-    </div>
+      <div id="track-result" class="hidden mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm"></div>
+    </section>
 
     <!-- Daftar Laporan Warga -->
-    <section id="daftar-laporan" class="space-y-6 scroll-mt-24">
+    <section id="daftar-laporan" class="space-y-6">
       <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <span class="text-xs font-bold uppercase tracking-wider text-rembang-600">Transparansi Publik</span>
@@ -515,18 +545,18 @@
       <!-- Feed Grid -->
       <div id="reports-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
     </section>
-  </main>
+  </div>
 
   <!-- Footer -->
-  <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 mt-16">
+  <footer class="bg-slate-900 text-slate-400 border-t border-slate-800">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
       <div>
         <p class="text-white font-bold text-sm">LaporRembang - Sistem Informasi Pelaporan Kejadian Daerah</p>
         <p class="mt-1">Melayani masyarakat Kabupaten Rembang: Sumber, Bulu, Gunem, Sale, Sarang, Sedan, Pamotan, Sulang, Kaliori, Rembang, Pancur, Kragan, Sluke, Lasem.</p>
       </div>
       <div class="flex items-center gap-4">
-        <button type="button" id="btn-footer-admin" class="text-indigo-400 hover:text-indigo-300 font-semibold transition">
-          Akses Panel Admin
+        <button type="button" onclick="switchMainTab('admin')" class="text-indigo-400 hover:text-indigo-300 font-semibold transition">
+          Tab Panel Admin
         </button>
         <span class="text-slate-600">|</span>
         <span class="text-slate-500">&copy; 2026 Portal Aduan Warga Kab. Rembang</span>
@@ -616,7 +646,7 @@
         RBG-2026-000
       </div>
       <button type="button" id="btn-close-modal" class="w-full py-2.5 rounded-xl bg-rembang-600 hover:bg-rembang-700 text-white font-bold text-sm transition">
-        Tutup &amp; Lihat Laporan
+        Tutup &amp; Lihat di Tab Pantau Aduan
       </button>
     </div>
   </div>

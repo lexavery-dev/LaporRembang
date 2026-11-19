@@ -201,7 +201,7 @@ let currentUser = null;
 let currentRole = "guest"; // 'guest' | 'user' | 'coadmin' | 'admin'
 let authMode = "login"; // 'login' | 'register'
 let filterOnlyMine = false;
-let isAdminPanelOpen = false;
+let activeTab = "utama"; // 'utama' | 'admin' | 'pantau'
 
 let map;
 let markersLayer;
@@ -218,9 +218,85 @@ document.addEventListener("DOMContentLoaded", () => {
 
   populateKecamatanDropdowns();
   initMap();
+  switchMainTab("utama");
   bindEvents();
   initFirebaseSync();
 });
+
+// ==========================================
+// 3-TAB NAVIGATION SYSTEM
+// ==========================================
+window.switchMainTab = function (tabName) {
+  activeTab = tabName;
+
+  const views = {
+    utama: document.getElementById("view-tab-utama"),
+    admin: document.getElementById("view-tab-admin"),
+    pantau: document.getElementById("view-tab-pantau")
+  };
+
+  const deskBtns = {
+    utama: document.getElementById("tab-btn-utama"),
+    admin: document.getElementById("tab-btn-admin"),
+    pantau: document.getElementById("tab-btn-pantau")
+  };
+
+  const mobBtns = {
+    utama: document.getElementById("mob-tab-utama"),
+    admin: document.getElementById("mob-tab-admin"),
+    pantau: document.getElementById("mob-tab-pantau")
+  };
+
+  Object.keys(views).forEach((key) => {
+    if (!views[key]) return;
+    if (key === tabName) {
+      views[key].classList.remove("hidden");
+    } else {
+      views[key].classList.add("hidden");
+    }
+  });
+
+  // Update Desktop Tab Button Styles
+  Object.keys(deskBtns).forEach((key) => {
+    const btn = deskBtns[key];
+    if (!btn) return;
+    if (key === tabName) {
+      btn.className =
+        key === "admin"
+          ? "px-4 py-1.5 rounded-lg text-xs font-extrabold transition bg-indigo-600 text-white shadow-2xs flex items-center gap-1.5"
+          : "px-4 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-rembang-700 shadow-2xs";
+    } else {
+      btn.className =
+        key === "admin"
+          ? "px-4 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900 flex items-center gap-1.5"
+          : "px-4 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900";
+    }
+  });
+
+  // Update Mobile Tab Button Styles
+  Object.keys(mobBtns).forEach((key) => {
+    const btn = mobBtns[key];
+    if (!btn) return;
+    if (key === tabName) {
+      btn.className =
+        key === "admin"
+          ? "py-2 px-2 rounded-lg text-[11px] font-extrabold text-center bg-indigo-600 text-white shadow-2xs transition"
+          : "py-2 px-2 rounded-lg text-[11px] font-extrabold text-center bg-rembang-600 text-white shadow-2xs transition";
+    } else {
+      btn.className =
+        "py-2 px-2 rounded-lg text-[11px] font-bold text-center bg-white text-slate-700 border border-slate-200 transition";
+    }
+  });
+
+  // Refresh Leaflet map size when returning to Tab 1
+  if (tabName === "utama" && map) {
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+  }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
 // ==========================================
 // FIREBASE AUTH & ROLE MANAGEMENT
@@ -233,28 +309,15 @@ function resolveUserRole(user) {
   return "user";
 }
 
-function openAdminPanel(scrollToIt = true) {
-  isAdminPanelOpen = true;
-  const adminPanel = document.getElementById("admin-panel");
-  adminPanel.classList.remove("hidden");
-  if (scrollToIt) {
-    adminPanel.scrollIntoView({ behavior: "smooth" });
-  }
-}
-
-function closeAdminPanel() {
-  isAdminPanelOpen = false;
-  const adminPanel = document.getElementById("admin-panel");
-  adminPanel.classList.add("hidden");
-}
-
 function updateAuthUI() {
+  const previousRole = currentRole;
   currentRole = resolveUserRole(currentUser);
 
   const btnOpenAuth = document.getElementById("btn-open-auth");
   const userProfileBar = document.getElementById("user-profile-bar");
   const navUserName = document.getElementById("nav-user-name");
   const navUserRole = document.getElementById("nav-user-role");
+  const tabAdminDot = document.getElementById("tab-admin-dot");
 
   const adminLevelBadge = document.getElementById("admin-level-badge");
   const adminLoggedEmail = document.getElementById("admin-logged-email");
@@ -280,8 +343,15 @@ function updateAuthUI() {
     btnOpenAuth.classList.remove("hidden");
     userProfileBar.classList.add("hidden");
     userProfileBar.classList.remove("flex");
+    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-slate-400";
 
-    // Admin Panel Gate for Guest
+    // Lock Report Form on Tab 1
+    reportAuthGate.classList.remove("hidden");
+    reportForm.classList.add("hidden");
+    btnFilterMine.classList.add("hidden");
+    filterOnlyMine = false;
+
+    // Lock Admin Tab 2
     adminLevelBadge.textContent = "Terkunci â€¢ Tamu";
     adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-700 text-slate-300";
     adminLoggedEmail.textContent = "Belum masuk akun";
@@ -291,19 +361,14 @@ function updateAuthUI() {
     btnExportCsv.classList.add("hidden");
     btnSyncCloud.classList.add("hidden");
 
-    adminGateTitle.textContent = "Autentikasi Petugas Diperlukan";
-    adminGateMessage.innerHTML = `Panel ini khusus untuk <strong>Admin Utama (Level 1)</strong> dengan email <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code> atau <strong>Co-Admin (Level 2)</strong> yang telah didaftarkan.`;
+    adminGateTitle.textContent = "Area Terbatas Petugas & Admin";
+    adminGateMessage.innerHTML = `Tab ini khusus untuk <strong>Admin Utama (Level 1)</strong> dengan email <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code> atau <strong>Co-Admin (Level 2)</strong> yang telah didaftarkan.`;
     btnAdminGateLogin.classList.remove("hidden");
     btnAdminGateSwitch.classList.add("hidden");
-
-    reportAuthGate.classList.remove("hidden");
-    reportForm.classList.add("hidden");
-    btnFilterMine.classList.add("hidden");
-    filterOnlyMine = false;
     return;
   }
 
-  // Logged-in State
+  // Logged-in State: Unlock Report Form in Tab 1 (Utama & Pelaporan)
   btnOpenAuth.classList.add("hidden");
   userProfileBar.classList.remove("hidden");
   userProfileBar.classList.add("flex");
@@ -323,8 +388,8 @@ function updateAuthUI() {
   if (currentRole === "admin") {
     navUserRole.textContent = "Admin Lv.1";
     navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-600 text-white";
+    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-emerald-400";
 
-    openAdminPanel(false);
     adminAccessGate.classList.add("hidden");
     adminAuthorizedContent.classList.remove("hidden");
     btnExportCsv.classList.remove("hidden");
@@ -336,11 +401,16 @@ function updateAuthUI() {
     adminRoleDesc.textContent = "Akses penuh: Verifikasi status laporan, tugaskan dinas, hapus laporan tidak valid, dan kelola hak akses Co-Admin.";
     coAdminManagerBox.classList.remove("hidden");
     renderCoAdminList();
+
+    // Otomatis pindah ke Tab 2 (Khusus Admin) saat admin baru sukses login
+    if (previousRole !== "admin") {
+      switchMainTab("admin");
+    }
   } else if (currentRole === "coadmin") {
     navUserRole.textContent = "Co-Admin Lv.2";
     navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-amber-500 text-slate-900";
+    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-amber-400";
 
-    openAdminPanel(false);
     adminAccessGate.classList.add("hidden");
     adminAuthorizedContent.classList.remove("hidden");
     btnExportCsv.classList.remove("hidden");
@@ -351,10 +421,16 @@ function updateAuthUI() {
     adminLoggedEmail.textContent = currentUser.email;
     adminRoleDesc.textContent = "Akses operator: Verifikasi laporan warga, ubah status penanganan, dan tetapkan instansi dinas terkait.";
     coAdminManagerBox.classList.add("hidden");
+
+    // Otomatis pindah ke Tab 2 (Khusus Admin) saat co-admin sukses login
+    if (previousRole !== "coadmin") {
+      switchMainTab("admin");
+    }
   } else {
-    // Regular logged-in reporter
+    // Regular logged-in reporter: tetap di Tab 1 agar langsung bisa akses kolom laporan
     navUserRole.textContent = "Warga Pelapor";
     navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-rembang-100 text-rembang-800";
+    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-rose-400";
 
     adminLevelBadge.textContent = "Akses Ditolak â€¢ Warga";
     adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40";
@@ -367,7 +443,7 @@ function updateAuthUI() {
     btnSyncCloud.classList.add("hidden");
 
     adminGateTitle.textContent = "Akun Anda Tidak Memiliki Akses Petugas";
-    adminGateMessage.innerHTML = `Anda saat ini masuk sebagai <strong>${escapeHtml(currentUser.email)}</strong> (Warga Pelapor). Hanya <strong>Admin Utama</strong> atau <strong>Co-Admin</strong> terdaftar yang dapat membuka tabel kendali.`;
+    adminGateMessage.innerHTML = `Anda saat ini masuk sebagai <strong>${escapeHtml(currentUser.email)}</strong> (Warga Pelapor). Hanya <strong>Admin Utama</strong> atau <strong>Co-Admin</strong> terdaftar yang dapat membuka tab kendali ini.`;
     btnAdminGateLogin.classList.add("hidden");
     btnAdminGateSwitch.classList.remove("hidden");
   }
@@ -987,20 +1063,7 @@ function translateFirebaseAuthError(code) {
 }
 
 function bindEvents() {
-  // Toggle Admin Panel from Navbar & Footer
-  document.getElementById("btn-toggle-admin-drawer").addEventListener("click", () => {
-    if (isAdminPanelOpen) {
-      closeAdminPanel();
-    } else {
-      openAdminPanel(true);
-    }
-  });
-
-  document.getElementById("btn-footer-admin").addEventListener("click", () => {
-    openAdminPanel(true);
-  });
-
-  document.getElementById("btn-close-admin-panel").addEventListener("click", closeAdminPanel);
+  // Admin Gate Actions
   document.getElementById("btn-admin-gate-login").addEventListener("click", openAuthModal);
   document.getElementById("btn-admin-gate-switch").addEventListener("click", async () => {
     await signOut(auth);
@@ -1085,6 +1148,7 @@ function bindEvents() {
   // Logout
   document.getElementById("btn-logout").addEventListener("click", async () => {
     await signOut(auth);
+    switchMainTab("utama");
   });
 
   // Add Co-Admin Form (Level 1 Admin Only)
@@ -1287,7 +1351,7 @@ function bindEvents() {
     const modal = document.getElementById("ticket-modal");
     modal.classList.add("hidden");
     modal.classList.remove("flex");
-    document.getElementById("daftar-laporan").scrollIntoView({ behavior: "smooth" });
+    switchMainTab("pantau");
   });
 
   const sosModal = document.getElementById("sos-modal");
@@ -1336,10 +1400,14 @@ window.toggleUpvote = async function (id) {
 };
 
 window.focusOnMap = function (lat, lng) {
-  document.getElementById("peta-kejadian").scrollIntoView({ behavior: "smooth" });
+  switchMainTab("utama");
   setTimeout(() => {
-    map.setView([lat, lng], 15);
-  }, 350);
+    document.getElementById("peta-kejadian").scrollIntoView({ behavior: "smooth" });
+    if (map) {
+      map.invalidateSize();
+      map.setView([lat, lng], 15);
+    }
+  }, 200);
 };
 
 function escapeHtml(str) {
