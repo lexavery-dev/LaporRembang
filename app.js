@@ -42,6 +42,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Deteksi halaman aktif (admin.html vs index.html)
+const IS_ADMIN_PAGE = window.location.pathname.toLowerCase().endsWith("admin.html");
+
 // Data 14 Kecamatan resmi di Kabupaten Rembang beserta koordinat pusatnya
 const KECAMATAN_REMBANG = [
   { name: "Rembang", lat: -6.7086, lng: 111.3418 },
@@ -201,7 +204,7 @@ let currentUser = null;
 let currentRole = "guest"; // 'guest' | 'user' | 'coadmin' | 'admin'
 let authMode = "login"; // 'login' | 'register'
 let filterOnlyMine = false;
-let activeTab = "utama"; // 'utama' | 'admin' | 'pantau'
+let justLoggedIn = false; // Flag agar perpindahan/scroll otomatis terjadi saat user baru login
 
 let map;
 let markersLayer;
@@ -216,87 +219,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const cachedCoAdmins = localStorage.getItem(COADMIN_CACHE_KEY);
   coAdminEmails = cachedCoAdmins ? JSON.parse(cachedCoAdmins) : [];
 
-  populateKecamatanDropdowns();
-  initMap();
-  switchMainTab("utama");
+  if (!IS_ADMIN_PAGE) {
+    populateKecamatanDropdowns();
+    initMap();
+  }
+
   bindEvents();
   initFirebaseSync();
 });
-
-// ==========================================
-// 3-TAB NAVIGATION SYSTEM
-// ==========================================
-window.switchMainTab = function (tabName) {
-  activeTab = tabName;
-
-  const views = {
-    utama: document.getElementById("view-tab-utama"),
-    admin: document.getElementById("view-tab-admin"),
-    pantau: document.getElementById("view-tab-pantau")
-  };
-
-  const deskBtns = {
-    utama: document.getElementById("tab-btn-utama"),
-    admin: document.getElementById("tab-btn-admin"),
-    pantau: document.getElementById("tab-btn-pantau")
-  };
-
-  const mobBtns = {
-    utama: document.getElementById("mob-tab-utama"),
-    admin: document.getElementById("mob-tab-admin"),
-    pantau: document.getElementById("mob-tab-pantau")
-  };
-
-  Object.keys(views).forEach((key) => {
-    if (!views[key]) return;
-    if (key === tabName) {
-      views[key].classList.remove("hidden");
-    } else {
-      views[key].classList.add("hidden");
-    }
-  });
-
-  // Update Desktop Tab Button Styles
-  Object.keys(deskBtns).forEach((key) => {
-    const btn = deskBtns[key];
-    if (!btn) return;
-    if (key === tabName) {
-      btn.className =
-        key === "admin"
-          ? "px-4 py-1.5 rounded-lg text-xs font-extrabold transition bg-indigo-600 text-white shadow-2xs flex items-center gap-1.5"
-          : "px-4 py-1.5 rounded-lg text-xs font-extrabold transition bg-white text-rembang-700 shadow-2xs";
-    } else {
-      btn.className =
-        key === "admin"
-          ? "px-4 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900 flex items-center gap-1.5"
-          : "px-4 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900";
-    }
-  });
-
-  // Update Mobile Tab Button Styles
-  Object.keys(mobBtns).forEach((key) => {
-    const btn = mobBtns[key];
-    if (!btn) return;
-    if (key === tabName) {
-      btn.className =
-        key === "admin"
-          ? "py-2 px-2 rounded-lg text-[11px] font-extrabold text-center bg-indigo-600 text-white shadow-2xs transition"
-          : "py-2 px-2 rounded-lg text-[11px] font-extrabold text-center bg-rembang-600 text-white shadow-2xs transition";
-    } else {
-      btn.className =
-        "py-2 px-2 rounded-lg text-[11px] font-bold text-center bg-white text-slate-700 border border-slate-200 transition";
-    }
-  });
-
-  // Refresh Leaflet map size when returning to Tab 1
-  if (tabName === "utama" && map) {
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
-  }
-
-  window.scrollTo({ top: 0, behavior: "smooth" });
-};
 
 // ==========================================
 // FIREBASE AUTH & ROLE MANAGEMENT
@@ -310,28 +240,138 @@ function resolveUserRole(user) {
 }
 
 function updateAuthUI() {
-  const previousRole = currentRole;
   currentRole = resolveUserRole(currentUser);
 
   const btnOpenAuth = document.getElementById("btn-open-auth");
   const userProfileBar = document.getElementById("user-profile-bar");
   const navUserName = document.getElementById("nav-user-name");
   const navUserRole = document.getElementById("nav-user-role");
-  const tabAdminDot = document.getElementById("tab-admin-dot");
 
-  const adminLevelBadge = document.getElementById("admin-level-badge");
-  const adminLoggedEmail = document.getElementById("admin-logged-email");
-  const adminRoleDesc = document.getElementById("admin-role-desc");
-  const adminAccessGate = document.getElementById("admin-access-gate");
-  const adminGateTitle = document.getElementById("admin-gate-title");
-  const adminGateMessage = document.getElementById("admin-gate-message");
-  const btnAdminGateLogin = document.getElementById("btn-admin-gate-login");
-  const btnAdminGateSwitch = document.getElementById("btn-admin-gate-switch");
-  const adminAuthorizedContent = document.getElementById("admin-authorized-content");
-  const coAdminManagerBox = document.getElementById("coadmin-manager-box");
-  const btnExportCsv = document.getElementById("btn-export-csv");
-  const btnSyncCloud = document.getElementById("btn-sync-cloud");
+  if (!currentUser) {
+    if (btnOpenAuth) btnOpenAuth.classList.remove("hidden");
+    if (userProfileBar) {
+      userProfileBar.classList.add("hidden");
+      userProfileBar.classList.remove("flex");
+    }
+  } else {
+    if (btnOpenAuth) btnOpenAuth.classList.add("hidden");
+    if (userProfileBar) {
+      userProfileBar.classList.remove("hidden");
+      userProfileBar.classList.add("flex");
+    }
+    const displayName = currentUser.displayName || currentUser.email.split("@")[0];
+    if (navUserName) navUserName.textContent = displayName;
+  }
 
+  // ====================================================
+  // CABANG 1: LOGIKA HALAMAN ADMIN (admin.html)
+  // ====================================================
+  if (IS_ADMIN_PAGE) {
+    const adminLevelBadge = document.getElementById("admin-level-badge");
+    const adminLoggedEmail = document.getElementById("admin-logged-email");
+    const adminRoleDesc = document.getElementById("admin-role-desc");
+    const adminAccessGate = document.getElementById("admin-access-gate");
+    const adminGateTitle = document.getElementById("admin-gate-title");
+    const adminGateMessage = document.getElementById("admin-gate-message");
+    const directLoginWrap = document.getElementById("admin-direct-login-wrap");
+    const wrongRoleActions = document.getElementById("admin-wrong-role-actions");
+    const adminAuthorizedContent = document.getElementById("admin-authorized-content");
+    const coAdminManagerBox = document.getElementById("coadmin-manager-box");
+    const btnExportCsv = document.getElementById("btn-export-csv");
+    const btnSyncCloud = document.getElementById("btn-sync-cloud");
+
+    if (!currentUser) {
+      if (adminLevelBadge) {
+        adminLevelBadge.textContent = "Terkunci â€¢ Belum Login";
+        adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700";
+      }
+      if (adminLoggedEmail) adminLoggedEmail.textContent = "Silakan masuk menggunakan akun petugas";
+      if (adminRoleDesc) adminRoleDesc.textContent = "Masuk sebagai Admin Utama atau Co-Admin untuk membuka dashboard kendali pengaduan.";
+      if (adminAccessGate) adminAccessGate.classList.remove("hidden");
+      if (directLoginWrap) directLoginWrap.classList.remove("hidden");
+      if (wrongRoleActions) wrongRoleActions.classList.add("hidden");
+      if (adminAuthorizedContent) adminAuthorizedContent.classList.add("hidden");
+      if (btnExportCsv) btnExportCsv.classList.add("hidden");
+      if (btnSyncCloud) btnSyncCloud.classList.add("hidden");
+      if (adminGateTitle) adminGateTitle.textContent = "Login Petugas & Admin";
+      if (adminGateMessage) {
+        adminGateMessage.innerHTML = `Khusus <strong>Admin Utama (Level 1)</strong> (<code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code>) atau <strong>Co-Admin (Level 2)</strong> terdaftar.`;
+      }
+      return;
+    }
+
+    if (currentRole === "admin" || currentRole === "coadmin") {
+      // Sukses login sebagai Admin / Co-Admin -> Buka Dashboard Admin!
+      if (adminAccessGate) adminAccessGate.classList.add("hidden");
+      if (adminAuthorizedContent) adminAuthorizedContent.classList.remove("hidden");
+      if (btnExportCsv) btnExportCsv.classList.remove("hidden");
+      if (btnSyncCloud) btnSyncCloud.classList.remove("hidden");
+      if (adminLoggedEmail) adminLoggedEmail.textContent = currentUser.email;
+
+      if (currentRole === "admin") {
+        if (navUserRole) {
+          navUserRole.textContent = "Admin Lv.1";
+          navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-600 text-white";
+        }
+        if (adminLevelBadge) {
+          adminLevelBadge.textContent = "Level 1 â€¢ Admin Utama";
+          adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40";
+        }
+        if (adminRoleDesc) adminRoleDesc.textContent = "Akses penuh: Verifikasi status laporan, tugaskan dinas, hapus laporan tidak valid, dan kelola Co-Admin.";
+        if (coAdminManagerBox) coAdminManagerBox.classList.remove("hidden");
+        renderCoAdminList();
+      } else {
+        if (navUserRole) {
+          navUserRole.textContent = "Co-Admin Lv.2";
+          navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500 text-slate-900";
+        }
+        if (adminLevelBadge) {
+          adminLevelBadge.textContent = "Level 2 â€¢ Co-Admin";
+          adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40";
+        }
+        if (adminRoleDesc) adminRoleDesc.textContent = "Akses operator: Verifikasi laporan warga, ubah status penanganan, dan tetapkan instansi dinas terkait.";
+        if (coAdminManagerBox) coAdminManagerBox.classList.add("hidden");
+      }
+
+      if (justLoggedIn) {
+        justLoggedIn = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      renderAdminReports();
+    } else {
+      // Login dengan akun warga biasa di admin.html -> Tolak akses & tampilkan tombol ganti akun
+      if (navUserRole) {
+        navUserRole.textContent = "Warga Pelapor";
+        navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-700 text-slate-200";
+      }
+      if (adminLevelBadge) {
+        adminLevelBadge.textContent = "Akses Ditolak â€¢ Warga";
+        adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40";
+      }
+      if (adminLoggedEmail) adminLoggedEmail.textContent = currentUser.email;
+      if (adminRoleDesc) adminRoleDesc.textContent = "Akun ini tidak terdaftar sebagai petugas admin.";
+
+      if (adminAccessGate) adminAccessGate.classList.remove("hidden");
+      if (directLoginWrap) directLoginWrap.classList.add("hidden");
+      if (wrongRoleActions) wrongRoleActions.classList.remove("hidden");
+      if (adminAuthorizedContent) adminAuthorizedContent.classList.add("hidden");
+      if (btnExportCsv) btnExportCsv.classList.add("hidden");
+      if (btnSyncCloud) btnSyncCloud.classList.add("hidden");
+
+      if (adminGateTitle) adminGateTitle.textContent = "Akun Tidak Memiliki Akses Admin";
+      if (adminGateMessage) {
+        adminGateMessage.innerHTML = `Anda masuk sebagai <strong>${escapeHtml(currentUser.email)}</strong> (Warga Pelapor). Hanya <strong>Admin Utama</strong> atau <strong>Co-Admin</strong> terdaftar yang dapat membuka dashboard ini.`;
+      }
+    }
+    return;
+  }
+
+  // ====================================================
+  // CABANG 2: LOGIKA HALAMAN WARGA (index.html)
+  // ====================================================
+  const navAdminDot = document.getElementById("nav-admin-dot");
+  const btnGotoAdmin = document.getElementById("btn-goto-admin");
   const reportAuthGate = document.getElementById("report-auth-gate");
   const reportForm = document.getElementById("report-form");
   const formReporterEmail = document.getElementById("form-reporter-email");
@@ -339,116 +379,59 @@ function updateAuthUI() {
   const btnFilterMine = document.getElementById("btn-filter-mine");
 
   if (!currentUser) {
-    // Guest State
-    btnOpenAuth.classList.remove("hidden");
-    userProfileBar.classList.add("hidden");
-    userProfileBar.classList.remove("flex");
-    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-slate-400";
-
-    // Lock Report Form on Tab 1
-    reportAuthGate.classList.remove("hidden");
-    reportForm.classList.add("hidden");
-    btnFilterMine.classList.add("hidden");
+    if (navAdminDot) navAdminDot.className = "w-2 h-2 rounded-full bg-slate-400";
+    if (btnGotoAdmin) btnGotoAdmin.classList.add("hidden");
+    if (reportAuthGate) reportAuthGate.classList.remove("hidden");
+    if (reportForm) reportForm.classList.add("hidden");
+    if (btnFilterMine) btnFilterMine.classList.add("hidden");
     filterOnlyMine = false;
-
-    // Lock Admin Tab 2
-    adminLevelBadge.textContent = "Terkunci â€¢ Tamu";
-    adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-700 text-slate-300";
-    adminLoggedEmail.textContent = "Belum masuk akun";
-    adminRoleDesc.textContent = "Silakan masuk menggunakan akun Admin Utama atau Co-Admin untuk mengakses kendali pengaduan.";
-    adminAccessGate.classList.remove("hidden");
-    adminAuthorizedContent.classList.add("hidden");
-    btnExportCsv.classList.add("hidden");
-    btnSyncCloud.classList.add("hidden");
-
-    adminGateTitle.textContent = "Area Terbatas Petugas & Admin";
-    adminGateMessage.innerHTML = `Tab ini khusus untuk <strong>Admin Utama (Level 1)</strong> dengan email <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code> atau <strong>Co-Admin (Level 2)</strong> yang telah didaftarkan.`;
-    btnAdminGateLogin.classList.remove("hidden");
-    btnAdminGateSwitch.classList.add("hidden");
+    renderReports();
     return;
   }
 
-  // Logged-in State: Unlock Report Form in Tab 1 (Utama & Pelaporan)
-  btnOpenAuth.classList.add("hidden");
-  userProfileBar.classList.remove("hidden");
-  userProfileBar.classList.add("flex");
+  // Jika Admin/Co-Admin baru saja login di index.html, langsung arahkan ke admin.html
+  if ((currentRole === "admin" || currentRole === "coadmin") && justLoggedIn) {
+    justLoggedIn = false;
+    window.location.href = "admin.html";
+    return;
+  }
 
+  // Buka Formulir Pengaduan untuk user yang sudah login
   const displayName = currentUser.displayName || currentUser.email.split("@")[0];
-  navUserName.textContent = displayName;
-  formReporterEmail.textContent = currentUser.email;
-  if (!reporterInput.value) {
+  if (formReporterEmail) formReporterEmail.textContent = currentUser.email;
+  if (reporterInput && !reporterInput.value) {
     reporterInput.value = displayName;
   }
 
-  reportAuthGate.classList.add("hidden");
-  reportForm.classList.remove("hidden");
-  btnFilterMine.classList.remove("hidden");
+  if (reportAuthGate) reportAuthGate.classList.add("hidden");
+  if (reportForm) reportForm.classList.remove("hidden");
+  if (btnFilterMine) btnFilterMine.classList.remove("hidden");
 
-  // Role Styling & Access Control
-  if (currentRole === "admin") {
-    navUserRole.textContent = "Admin Lv.1";
-    navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-600 text-white";
-    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-emerald-400";
-
-    adminAccessGate.classList.add("hidden");
-    adminAuthorizedContent.classList.remove("hidden");
-    btnExportCsv.classList.remove("hidden");
-    btnSyncCloud.classList.remove("hidden");
-
-    adminLevelBadge.textContent = "Level 1 â€¢ Admin Utama";
-    adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40";
-    adminLoggedEmail.textContent = currentUser.email;
-    adminRoleDesc.textContent = "Akses penuh: Verifikasi status laporan, tugaskan dinas, hapus laporan tidak valid, dan kelola hak akses Co-Admin.";
-    coAdminManagerBox.classList.remove("hidden");
-    renderCoAdminList();
-
-    // Otomatis pindah ke Tab 2 (Khusus Admin) saat admin baru sukses login
-    if (previousRole !== "admin") {
-      switchMainTab("admin");
+  if (currentRole === "admin" || currentRole === "coadmin") {
+    if (navUserRole) {
+      navUserRole.textContent = currentRole === "admin" ? "Admin Lv.1" : "Co-Admin Lv.2";
+      navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-600 text-white";
     }
-  } else if (currentRole === "coadmin") {
-    navUserRole.textContent = "Co-Admin Lv.2";
-    navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-amber-500 text-slate-900";
-    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-amber-400";
-
-    adminAccessGate.classList.add("hidden");
-    adminAuthorizedContent.classList.remove("hidden");
-    btnExportCsv.classList.remove("hidden");
-    btnSyncCloud.classList.remove("hidden");
-
-    adminLevelBadge.textContent = "Level 2 â€¢ Co-Admin";
-    adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40";
-    adminLoggedEmail.textContent = currentUser.email;
-    adminRoleDesc.textContent = "Akses operator: Verifikasi laporan warga, ubah status penanganan, dan tetapkan instansi dinas terkait.";
-    coAdminManagerBox.classList.add("hidden");
-
-    // Otomatis pindah ke Tab 2 (Khusus Admin) saat co-admin sukses login
-    if (previousRole !== "coadmin") {
-      switchMainTab("admin");
-    }
+    if (navAdminDot) navAdminDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+    if (btnGotoAdmin) btnGotoAdmin.classList.remove("hidden");
   } else {
-    // Regular logged-in reporter: tetap di Tab 1 agar langsung bisa akses kolom laporan
-    navUserRole.textContent = "Warga Pelapor";
-    navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-rembang-100 text-rembang-800";
-    if (tabAdminDot) tabAdminDot.className = "w-2 h-2 rounded-full bg-rose-400";
-
-    adminLevelBadge.textContent = "Akses Ditolak â€¢ Warga";
-    adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40";
-    adminLoggedEmail.textContent = currentUser.email;
-    adminRoleDesc.textContent = "Akun Anda terdaftar sebagai Warga Pelapor dan tidak memiliki izin petugas.";
-
-    adminAccessGate.classList.remove("hidden");
-    adminAuthorizedContent.classList.add("hidden");
-    btnExportCsv.classList.add("hidden");
-    btnSyncCloud.classList.add("hidden");
-
-    adminGateTitle.textContent = "Akun Anda Tidak Memiliki Akses Petugas";
-    adminGateMessage.innerHTML = `Anda saat ini masuk sebagai <strong>${escapeHtml(currentUser.email)}</strong> (Warga Pelapor). Hanya <strong>Admin Utama</strong> atau <strong>Co-Admin</strong> terdaftar yang dapat membuka tab kendali ini.`;
-    btnAdminGateLogin.classList.add("hidden");
-    btnAdminGateSwitch.classList.remove("hidden");
+    if (navUserRole) {
+      navUserRole.textContent = "Warga Pelapor";
+      navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rembang-100 text-rembang-800";
+    }
+    if (navAdminDot) navAdminDot.className = "w-2 h-2 rounded-full bg-slate-400";
+    if (btnGotoAdmin) btnGotoAdmin.classList.add("hidden");
   }
 
-  renderAdminReports();
+  // Jika warga baru saja login di index.html, langsung gulir ke formulir pengaduan yang baru terbuka
+  if (justLoggedIn) {
+    justLoggedIn = false;
+    const formSection = document.getElementById("buat-laporan");
+    if (formSection) {
+      formSection.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+
   renderReports();
 }
 
@@ -505,7 +488,9 @@ function initFirebaseSync() {
       async (snapshot) => {
         if (statusBadge) {
           statusBadge.textContent = "Live Cloud Sync";
-          statusBadge.className = "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full";
+          statusBadge.className = IS_ADMIN_PAGE
+            ? "text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full"
+            : "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full";
         }
 
         if (snapshot.empty) {
@@ -534,7 +519,9 @@ function activateLocalFallback() {
   const statusBadge = document.getElementById("firebase-status-badge");
   if (statusBadge) {
     statusBadge.textContent = "Mode Lokal (Offline)";
-    statusBadge.className = "text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full";
+    statusBadge.className = IS_ADMIN_PAGE
+      ? "text-[11px] font-semibold text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full"
+      : "text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full";
   }
   const saved = localStorage.getItem(STORAGE_KEY);
   reports = saved ? JSON.parse(saved) : [...INITIAL_REPORTS];
@@ -545,10 +532,13 @@ function activateLocalFallback() {
 }
 
 function refreshAllViews() {
-  renderStats();
-  renderReports();
-  renderMapMarkers();
-  renderAdminReports();
+  if (IS_ADMIN_PAGE) {
+    renderAdminReports();
+  } else {
+    renderStats();
+    renderReports();
+    renderMapMarkers();
+  }
 }
 
 // ==========================================
@@ -600,7 +590,6 @@ window.removeCoAdmin = async function (email) {
 // ADMIN PANEL TABLE & ACTIONS
 // ==========================================
 function renderAdminReports() {
-  // Update Admin Quick Stats
   const totalEl = document.getElementById("adm-stat-total");
   if (totalEl) {
     totalEl.textContent = reports.length;
@@ -673,9 +662,9 @@ function renderAdminReports() {
           <button type="button" onclick="openAdminReportDetail('${rep.id}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 font-semibold transition">
             Detail
           </button>
-          <button type="button" onclick="focusOnMap(${rep.lat}, ${rep.lng})" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold transition">
+          <a href="index.html?lat=${rep.lat}&lng=${rep.lng}#peta-kejadian" class="inline-block px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold transition">
             Peta
-          </button>
+          </a>
           ${
             isAdminLv1
               ? `<button type="button" onclick="adminDeleteReport('${rep.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 font-semibold transition">Hapus</button>`
@@ -692,10 +681,11 @@ window.openAdminReportDetail = function (id) {
   const rep = reports.find((r) => r.id === id);
   if (!rep) return;
 
+  const safePhoto = isSafeImageUrl(rep.photo) ? rep.photo : "";
   document.getElementById("adm-modal-id").textContent = `${rep.id} â€¢ ${rep.status}`;
   document.getElementById("adm-modal-title").textContent = rep.title;
   document.getElementById("adm-modal-body").innerHTML = `
-    ${rep.photo ? `<img src="${rep.photo}" alt="Foto Bukti" class="w-full h-44 object-cover rounded-xl border border-slate-200" />` : ""}
+    ${safePhoto ? `<img src="${safePhoto}" alt="Foto Bukti" class="w-full h-44 object-cover rounded-xl border border-slate-200" />` : ""}
     <div class="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
       <div><span class="text-slate-400 block">Kecamatan / Desa:</span><strong class="text-slate-800">Kec. ${escapeHtml(rep.kecamatan)}, ${escapeHtml(rep.desa)}</strong></div>
       <div><span class="text-slate-400 block">Kategori &amp; Urgensi:</span><strong class="text-slate-800">${escapeHtml(rep.category)} (${escapeHtml(rep.urgency)})</strong></div>
@@ -795,11 +785,12 @@ function exportReportsToCsv() {
 }
 
 // ==========================================
-// MAP & PUBLIC UI RENDERING
+// MAP & PUBLIC UI RENDERING (index.html)
 // ==========================================
 function populateKecamatanDropdowns() {
   const formSelect = document.getElementById("kecamatan");
   const filterSelect = document.getElementById("filter-kecamatan");
+  if (!formSelect || !filterSelect) return;
 
   KECAMATAN_REMBANG.forEach((kec) => {
     const opt1 = document.createElement("option");
@@ -815,7 +806,18 @@ function populateKecamatanDropdowns() {
 }
 
 function initMap() {
-  map = L.map("rembang-map").setView([-6.735, 111.46], 11);
+  const mapContainer = document.getElementById("rembang-map");
+  if (!mapContainer || typeof L === "undefined") return;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramLat = parseFloat(urlParams.get("lat"));
+  const paramLng = parseFloat(urlParams.get("lng"));
+  const hasQueryCoords = !isNaN(paramLat) && !isNaN(paramLng);
+
+  map = L.map("rembang-map").setView(
+    hasQueryCoords ? [paramLat, paramLng] : [-6.735, 111.46],
+    hasQueryCoords ? 15 : 11
+  );
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
@@ -843,8 +845,10 @@ function initMap() {
 }
 
 function updateCoordinateInputs(lat, lng) {
-  document.getElementById("lat").value = lat.toFixed(5);
-  document.getElementById("lng").value = lng.toFixed(5);
+  const latInput = document.getElementById("lat");
+  const lngInput = document.getElementById("lng");
+  if (latInput) latInput.value = lat.toFixed(5);
+  if (lngInput) lngInput.value = lng.toFixed(5);
 }
 
 function getMarkerColor(report) {
@@ -870,11 +874,11 @@ function renderMapMarkers() {
 
     circle.bindPopup(`
       <div style="min-width:190px">
-        <div style="font-weight:800;color:#0284c7;font-size:11px;">${rep.id} &bull; Kec. ${rep.kecamatan}</div>
+        <div style="font-weight:800;color:#0284c7;font-size:11px;">${escapeHtml(rep.id)} &bull; Kec. ${escapeHtml(rep.kecamatan)}</div>
         <div style="font-weight:700;color:#0f172a;margin:3px 0;">${escapeHtml(rep.title)}</div>
         <div style="color:#475569;font-size:11px;">${escapeHtml(rep.desa)}</div>
         <div style="margin-top:6px;display:inline-block;padding:2px 7px;border-radius:6px;background:#f1f5f9;font-weight:700;font-size:10px;">
-          Status: ${rep.status}
+          Status: ${escapeHtml(rep.status)}
         </div>
       </div>
     `);
@@ -884,12 +888,15 @@ function renderMapMarkers() {
 }
 
 function renderStats() {
+  const totalEl = document.getElementById("stat-total");
+  if (!totalEl) return;
+
   const total = reports.length;
   const pending = reports.filter((r) => r.status === "Menunggu Verifikasi").length;
   const progress = reports.filter((r) => r.status === "Sedang Ditangani").length;
   const resolved = reports.filter((r) => r.status === "Selesai").length;
 
-  document.getElementById("stat-total").textContent = total;
+  totalEl.textContent = total;
   document.getElementById("stat-pending").textContent = pending;
   document.getElementById("stat-progress").textContent = progress;
   document.getElementById("stat-resolved").textContent = resolved;
@@ -921,9 +928,11 @@ function getStatusBadge(status) {
 
 function renderReports() {
   const grid = document.getElementById("reports-grid");
-  const keyword = document.getElementById("search-reports").value.toLowerCase().trim();
-  const kecFilter = document.getElementById("filter-kecamatan").value;
-  const statusFilter = document.getElementById("filter-status").value;
+  if (!grid) return;
+
+  const keyword = (document.getElementById("search-reports")?.value || "").toLowerCase().trim();
+  const kecFilter = document.getElementById("filter-kecamatan")?.value || "ALL";
+  const statusFilter = document.getElementById("filter-status")?.value || "ALL";
 
   const filtered = reports.filter((rep) => {
     const matchMine =
@@ -954,23 +963,24 @@ function renderReports() {
     .map((rep) => {
       const isUpvoted = upvotedIds.includes(rep.id);
       const isMine = currentUser && (rep.reporterUid === currentUser.uid || rep.reporterEmail === currentUser.email);
+      const safePhoto = isSafeImageUrl(rep.photo) ? rep.photo : "";
       return `
       <article class="bg-white rounded-2xl border ${isMine ? "border-rembang-300 ring-1 ring-rembang-100" : "border-slate-200/90"} shadow-sm hover:shadow-md transition flex flex-col justify-between overflow-hidden">
         ${
-          rep.photo
-            ? `<img src="${rep.photo}" alt="Bukti kejadian" class="w-full h-40 object-cover border-b border-slate-100" />`
+          safePhoto
+            ? `<img src="${safePhoto}" alt="Bukti kejadian" class="w-full h-40 object-cover border-b border-slate-100" />`
             : ""
         }
         <div class="p-5 space-y-3 flex-1">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-1.5">
               <span class="font-mono text-[11px] font-bold text-rembang-700 bg-rembang-50 px-2.5 py-0.5 rounded-md border border-rembang-100">
-                ${rep.id}
+                ${escapeHtml(rep.id)}
               </span>
               ${isMine ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">Laporan Anda</span>` : ""}
             </div>
             <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${getStatusBadge(rep.status)}">
-              ${rep.status}
+              ${escapeHtml(rep.status)}
             </span>
           </div>
 
@@ -992,14 +1002,14 @@ function renderReports() {
               ${escapeHtml(rep.category)}
             </span>
             <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${getUrgencyBadge(rep.urgency)}">
-              Urgensi: ${rep.urgency}
+              Urgensi: ${escapeHtml(rep.urgency)}
             </span>
           </div>
         </div>
 
         <div class="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs">
           <div class="text-slate-500">
-            <span class="font-semibold text-slate-700">${escapeHtml(rep.reporter)}</span> &bull; ${rep.createdAt}
+            <span class="font-semibold text-slate-700">${escapeHtml(rep.reporter)}</span> &bull; ${escapeHtml(rep.createdAt)}
           </div>
           <div class="flex items-center gap-2">
             <button type="button" onclick="focusOnMap(${rep.lat}, ${rep.lng})" title="Lihat di Peta" class="p-1.5 rounded-lg text-slate-500 hover:text-rembang-600 hover:bg-white border border-transparent hover:border-slate-200 transition">
@@ -1025,22 +1035,29 @@ function renderReports() {
 // EVENT LISTENERS (AUTH, FORM, FILTERS)
 // ==========================================
 function openAuthModal() {
-  document.getElementById("auth-error-box").classList.add("hidden");
+  const errBox = document.getElementById("auth-error-box");
+  if (errBox) errBox.classList.add("hidden");
   const modal = document.getElementById("auth-modal");
-  modal.classList.remove("hidden");
-  modal.classList.add("flex");
+  if (modal) {
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
 }
 
 function closeAuthModal() {
   const modal = document.getElementById("auth-modal");
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
 }
 
 function showAuthError(msg) {
   const box = document.getElementById("auth-error-box");
-  box.textContent = msg;
-  box.classList.remove("hidden");
+  if (box) {
+    box.textContent = msg;
+    box.classList.remove("hidden");
+  }
 }
 
 function translateFirebaseAuthError(code) {
@@ -1063,72 +1080,85 @@ function translateFirebaseAuthError(code) {
 }
 
 function bindEvents() {
-  // Admin Gate Actions
-  document.getElementById("btn-admin-gate-login").addEventListener("click", openAuthModal);
-  document.getElementById("btn-admin-gate-switch").addEventListener("click", async () => {
+  // Tombol Login Header (berlaku di index.html & admin.html)
+  document.getElementById("btn-open-auth")?.addEventListener("click", () => {
+    if (IS_ADMIN_PAGE) {
+      document.getElementById("auth-email")?.focus();
+    } else {
+      openAuthModal();
+    }
+  });
+
+  document.getElementById("btn-gate-login")?.addEventListener("click", openAuthModal);
+  document.getElementById("btn-close-auth")?.addEventListener("click", closeAuthModal);
+
+  // Ganti akun jika akun warga masuk ke admin.html
+  document.getElementById("btn-admin-gate-switch")?.addEventListener("click", async () => {
     await signOut(auth);
-    openAuthModal();
   });
 
-  document.getElementById("btn-close-adm-modal").addEventListener("click", () => {
+  // Modal Detail Laporan Admin
+  document.getElementById("btn-close-adm-modal")?.addEventListener("click", () => {
     const modal = document.getElementById("admin-detail-modal");
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
+    if (modal) {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
   });
 
-  document.getElementById("btn-export-csv").addEventListener("click", exportReportsToCsv);
-  document.getElementById("admin-search-input").addEventListener("input", renderAdminReports);
-  document.getElementById("admin-status-filter").addEventListener("change", renderAdminReports);
+  document.getElementById("btn-export-csv")?.addEventListener("click", exportReportsToCsv);
+  document.getElementById("admin-search-input")?.addEventListener("input", renderAdminReports);
+  document.getElementById("admin-status-filter")?.addEventListener("change", renderAdminReports);
 
-  // Auth Modal Triggers
-  document.getElementById("btn-open-auth").addEventListener("click", openAuthModal);
-  document.getElementById("btn-gate-login").addEventListener("click", openAuthModal);
-  document.getElementById("btn-close-auth").addEventListener("click", closeAuthModal);
-
-  // Auth Tabs (Login vs Register)
+  // Auth Tabs (Login vs Register di index.html)
   const tabLogin = document.getElementById("tab-login");
   const tabRegister = document.getElementById("tab-register");
   const nameWrap = document.getElementById("auth-name-wrap");
   const submitAuthBtn = document.getElementById("btn-email-auth-submit");
 
-  tabLogin.addEventListener("click", () => {
+  tabLogin?.addEventListener("click", () => {
     authMode = "login";
-    tabLogin.className = "py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs transition";
+    tabLogin.className = "py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition";
     tabRegister.className = "py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition";
-    nameWrap.classList.add("hidden");
-    submitAuthBtn.textContent = "Masuk Sekarang";
-    document.getElementById("auth-error-box").classList.add("hidden");
+    nameWrap?.classList.add("hidden");
+    if (submitAuthBtn) submitAuthBtn.textContent = "Masuk Sekarang";
+    document.getElementById("auth-error-box")?.classList.add("hidden");
   });
 
-  tabRegister.addEventListener("click", () => {
+  tabRegister?.addEventListener("click", () => {
     authMode = "register";
-    tabRegister.className = "py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs transition";
+    tabRegister.className = "py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition";
     tabLogin.className = "py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition";
-    nameWrap.classList.remove("hidden");
-    submitAuthBtn.textContent = "Daftar Akun Pelapor";
-    document.getElementById("auth-error-box").classList.add("hidden");
+    nameWrap?.classList.remove("hidden");
+    if (submitAuthBtn) submitAuthBtn.textContent = "Daftar Akun Pelapor";
+    document.getElementById("auth-error-box")?.classList.add("hidden");
   });
 
-  // Google Sign-In
-  document.getElementById("btn-google-login").addEventListener("click", async () => {
+  // Google Sign-In (dipakai baik di modal index.html maupun di form langsung admin.html)
+  document.getElementById("btn-google-login")?.addEventListener("click", async () => {
     try {
+      justLoggedIn = true;
       await signInWithPopup(auth, googleProvider);
       closeAuthModal();
+      updateAuthUI();
     } catch (err) {
+      justLoggedIn = false;
       showAuthError(translateFirebaseAuthError(err.code || err.message));
     }
   });
 
-  // Email/Password Auth Submit
-  document.getElementById("email-auth-form").addEventListener("submit", async (e) => {
+  // Email/Password Auth Submit (dipakai baik di modal index.html maupun di form langsung admin.html)
+  document.getElementById("email-auth-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("auth-email").value.trim();
     const password = document.getElementById("auth-password").value;
-    const fullName = document.getElementById("auth-name").value.trim();
+    const fullName = document.getElementById("auth-name")?.value.trim() || "";
 
     try {
-      submitAuthBtn.disabled = true;
-      if (authMode === "register") {
+      if (submitAuthBtn) submitAuthBtn.disabled = true;
+      justLoggedIn = true;
+
+      if (!IS_ADMIN_PAGE && authMode === "register") {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         if (fullName) {
           await updateProfile(cred.user, { displayName: fullName });
@@ -1136,23 +1166,28 @@ function bindEvents() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
+
       e.target.reset();
       closeAuthModal();
+      updateAuthUI();
     } catch (err) {
+      justLoggedIn = false;
       showAuthError(translateFirebaseAuthError(err.code || err.message));
     } finally {
-      submitAuthBtn.disabled = false;
+      if (submitAuthBtn) submitAuthBtn.disabled = false;
     }
   });
 
   // Logout
-  document.getElementById("btn-logout").addEventListener("click", async () => {
+  document.getElementById("btn-logout")?.addEventListener("click", async () => {
     await signOut(auth);
-    switchMainTab("utama");
+    if (IS_ADMIN_PAGE) {
+      window.location.href = "index.html";
+    }
   });
 
-  // Add Co-Admin Form (Level 1 Admin Only)
-  document.getElementById("coadmin-form").addEventListener("submit", async (e) => {
+  // Add Co-Admin Form (Level 1 Admin Only di admin.html)
+  document.getElementById("coadmin-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (currentRole !== "admin") return;
 
@@ -1184,13 +1219,13 @@ function bindEvents() {
   });
 
   // Sync / Refresh button in Admin Panel
-  document.getElementById("btn-sync-cloud").addEventListener("click", () => {
+  document.getElementById("btn-sync-cloud")?.addEventListener("click", () => {
     refreshAllViews();
   });
 
-  // Filter Laporan Saya
+  // Filter Laporan Saya (index.html)
   const btnFilterMine = document.getElementById("btn-filter-mine");
-  btnFilterMine.addEventListener("click", () => {
+  btnFilterMine?.addEventListener("click", () => {
     filterOnlyMine = !filterOnlyMine;
     btnFilterMine.className = filterOnlyMine
       ? "rounded-xl border border-rembang-600 bg-rembang-600 px-3 py-2 text-xs font-bold text-white transition"
@@ -1199,7 +1234,7 @@ function bindEvents() {
   });
 
   // Kecamatan select updates map focus & coordinates
-  document.getElementById("kecamatan").addEventListener("change", (e) => {
+  document.getElementById("kecamatan")?.addEventListener("change", (e) => {
     const found = KECAMATAN_REMBANG.find((k) => k.name === e.target.value);
     if (found && map && draftMarker) {
       map.setView([found.lat, found.lng], 13);
@@ -1209,7 +1244,7 @@ function bindEvents() {
   });
 
   // Geolocation GPS
-  document.getElementById("btn-geolocate").addEventListener("click", () => {
+  document.getElementById("btn-geolocate")?.addEventListener("click", () => {
     if (!navigator.geolocation) {
       alert("Browser Anda tidak mendukung fitur GPS.");
       return;
@@ -1227,21 +1262,19 @@ function bindEvents() {
     );
   });
 
-  // Photo upload preview
-  document.getElementById("photo").addEventListener("change", (e) => {
+  // Photo upload preview dengan kompresi otomatis agar aman untuk Firestore (<1MB)
+  document.getElementById("photo")?.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      uploadedPhotoBase64 = ev.target.result;
+    compressImageToBase64(file, 900, 0.72, (compressedDataUrl) => {
+      uploadedPhotoBase64 = compressedDataUrl;
       document.getElementById("photo-preview").src = uploadedPhotoBase64;
       document.getElementById("photo-preview-wrap").classList.remove("hidden");
       document.getElementById("photo-label").textContent = file.name;
-    };
-    reader.readAsDataURL(file);
+    });
   });
 
-  document.getElementById("btn-remove-photo").addEventListener("click", () => {
+  document.getElementById("btn-remove-photo")?.addEventListener("click", () => {
     uploadedPhotoBase64 = "";
     document.getElementById("photo").value = "";
     document.getElementById("photo-preview-wrap").classList.add("hidden");
@@ -1249,7 +1282,7 @@ function bindEvents() {
   });
 
   // Submit Report Form (Requires Login)
-  document.getElementById("report-form").addEventListener("submit", async (e) => {
+  document.getElementById("report-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!currentUser) {
       openAuthModal();
@@ -1262,7 +1295,7 @@ function bindEvents() {
     const reporterName = isAnon ? "Warga Anonim" : rawName || defaultName;
     const category = document.getElementById("category").value;
 
-    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const ticketCode = `RBG-2026-${randomSuffix}`;
 
     const newReport = {
@@ -1301,12 +1334,16 @@ function bindEvents() {
       submitBtn.disabled = false;
     }
 
-    // Reset form
+    // Reset form & sinkronkan kembali marker peta
     e.target.reset();
     document.getElementById("reporter").value = defaultName;
     uploadedPhotoBase64 = "";
     document.getElementById("photo-preview-wrap").classList.add("hidden");
     document.getElementById("photo-label").textContent = "Pilih atau ambil foto kejadian (JPG/PNG)";
+    if (map && draftMarker) {
+      draftMarker.setLatLng([-6.7086, 111.3418]);
+      updateCoordinateInputs(-6.7086, 111.3418);
+    }
 
     // Show modal
     document.getElementById("modal-ticket-code").textContent = ticketCode;
@@ -1316,12 +1353,12 @@ function bindEvents() {
   });
 
   // Filters
-  document.getElementById("search-reports").addEventListener("input", renderReports);
-  document.getElementById("filter-kecamatan").addEventListener("change", renderReports);
-  document.getElementById("filter-status").addEventListener("change", renderReports);
+  document.getElementById("search-reports")?.addEventListener("input", renderReports);
+  document.getElementById("filter-kecamatan")?.addEventListener("change", renderReports);
+  document.getElementById("filter-status")?.addEventListener("change", renderReports);
 
   // Track Ticket
-  document.getElementById("track-form").addEventListener("submit", (e) => {
+  document.getElementById("track-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
     const code = document.getElementById("track-input").value.trim().toUpperCase();
     const resultBox = document.getElementById("track-result");
@@ -1336,8 +1373,8 @@ function bindEvents() {
     resultBox.innerHTML = `
       <div class="space-y-1.5">
         <div class="flex items-center justify-between">
-          <span class="font-mono font-extrabold text-rembang-700">${found.id}</span>
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full border ${getStatusBadge(found.status)}">${found.status}</span>
+          <span class="font-mono font-extrabold text-rembang-700">${escapeHtml(found.id)}</span>
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full border ${getStatusBadge(found.status)}">${escapeHtml(found.status)}</span>
         </div>
         <p class="font-bold text-slate-900">${escapeHtml(found.title)}</p>
         <p class="text-xs text-slate-600">Lokasi: Kec. ${escapeHtml(found.kecamatan)}, ${escapeHtml(found.desa)}</p>
@@ -1347,22 +1384,49 @@ function bindEvents() {
   });
 
   // Modals
-  document.getElementById("btn-close-modal").addEventListener("click", () => {
+  document.getElementById("btn-close-modal")?.addEventListener("click", () => {
     const modal = document.getElementById("ticket-modal");
     modal.classList.add("hidden");
     modal.classList.remove("flex");
-    switchMainTab("pantau");
+    document.getElementById("daftar-laporan")?.scrollIntoView({ behavior: "smooth" });
   });
 
   const sosModal = document.getElementById("sos-modal");
-  document.getElementById("btn-quick-sos").addEventListener("click", () => {
-    sosModal.classList.remove("hidden");
-    sosModal.classList.add("flex");
+  document.getElementById("btn-quick-sos")?.addEventListener("click", () => {
+    sosModal?.classList.remove("hidden");
+    sosModal?.classList.add("flex");
   });
-  document.getElementById("btn-close-sos").addEventListener("click", () => {
-    sosModal.classList.add("hidden");
-    sosModal.classList.remove("flex");
+  document.getElementById("btn-close-sos")?.addEventListener("click", () => {
+    sosModal?.classList.add("hidden");
+    sosModal?.classList.remove("flex");
   });
+}
+
+function compressImageToBase64(file, maxWidth, quality, callback) {
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function isSafeImageUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  return url.startsWith("data:image/") || url.startsWith("https://") || url.startsWith("http://");
 }
 
 function mapCategoryToAgency(category) {
@@ -1400,14 +1464,14 @@ window.toggleUpvote = async function (id) {
 };
 
 window.focusOnMap = function (lat, lng) {
-  switchMainTab("utama");
-  setTimeout(() => {
-    document.getElementById("peta-kejadian").scrollIntoView({ behavior: "smooth" });
-    if (map) {
-      map.invalidateSize();
-      map.setView([lat, lng], 15);
-    }
-  }, 200);
+  const mapEl = document.getElementById("peta-kejadian");
+  if (mapEl) {
+    mapEl.scrollIntoView({ behavior: "smooth" });
+  }
+  if (map) {
+    map.invalidateSize();
+    map.setView([lat, lng], 15);
+  }
 };
 
 function escapeHtml(str) {
