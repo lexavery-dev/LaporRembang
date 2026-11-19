@@ -14,8 +14,6 @@ import {
   collection,
   doc,
   setDoc,
-  getDoc,
-  getDocs,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -78,6 +76,7 @@ const INITIAL_REPORTS = [
     lat: -6.6985,
     lng: 111.3452,
     description: "Air pasang laut naik sejak pukul 11.30 WIB setinggi 35 cm menutup akses jalan warga menuju TPI Tasikagung. Mohon bantuan pompa penyedot dari BPBD.",
+    phone: "0812-2840-1122",
     reporter: "Hendra Saputra",
     reporterEmail: "warga.tasikagung@example.com",
     reporterUid: "seed-1",
@@ -98,6 +97,7 @@ const INITIAL_REPORTS = [
     lat: -6.6948,
     lng: 111.4435,
     description: "Terdapat lubang berdiameter sekitar 80 cm dengan kedalaman 15 cm di lajur arah Surabaya. Sangat membahayakan pengendara motor pada malam hari.",
+    phone: "0857-4120-8890",
     reporter: "Siti Nurhaliza",
     reporterEmail: "siti.lasem@example.com",
     reporterUid: "seed-2",
@@ -118,6 +118,7 @@ const INITIAL_REPORTS = [
     lat: -6.7840,
     lng: 111.3740,
     description: "Ada 5 titik lampu penerangan jalan umum yang padam total selama 3 malam berturut-turut sehingga jalan rawan kecelakaan.",
+    phone: "0813-9011-3344",
     reporter: "Warga Anonim",
     reporterEmail: "warga.sulang@example.com",
     reporterUid: "seed-3",
@@ -138,6 +139,7 @@ const INITIAL_REPORTS = [
     lat: -6.6980,
     lng: 111.6130,
     description: "Sampah rumah tangga dan sisa pasar menumpuk di pinggir jalan dan menimbulkan bau menyengat. Armada pengangkut sudah menindaklanjuti pagi ini.",
+    phone: "0821-3566-7712",
     reporter: "Ahmad Fauzi",
     reporterEmail: "ahmad.kragan@example.com",
     reporterUid: "seed-4",
@@ -158,6 +160,7 @@ const INITIAL_REPORTS = [
     lat: -6.7715,
     lng: 111.4910,
     description: "Akar pohon besar di tepi jalan mulai terangkat setelah hujan deras disertai angin kencang kemarin sore.",
+    phone: "0852-2590-4410",
     reporter: "Budi Santoso",
     reporterEmail: "budi.pamotan@example.com",
     reporterUid: "seed-5",
@@ -178,6 +181,7 @@ const INITIAL_REPORTS = [
     lat: -6.6645,
     lng: 111.5180,
     description: "Parkir truk bermuatan di bahu jalan Pantura Sluke menyempitkan arus lalu lintas dari kedua arah pada jam berangkat kerja.",
+    phone: "0877-3188-9021",
     reporter: "Rudi Hartono",
     reporterEmail: "rudi.sluke@example.com",
     reporterUid: "seed-6",
@@ -197,7 +201,7 @@ let currentUser = null;
 let currentRole = "guest"; // 'guest' | 'user' | 'coadmin' | 'admin'
 let authMode = "login"; // 'login' | 'register'
 let filterOnlyMine = false;
-let useLocalFallback = false;
+let isAdminPanelOpen = false;
 
 let map;
 let markersLayer;
@@ -229,6 +233,21 @@ function resolveUserRole(user) {
   return "user";
 }
 
+function openAdminPanel(scrollToIt = true) {
+  isAdminPanelOpen = true;
+  const adminPanel = document.getElementById("admin-panel");
+  adminPanel.classList.remove("hidden");
+  if (scrollToIt) {
+    adminPanel.scrollIntoView({ behavior: "smooth" });
+  }
+}
+
+function closeAdminPanel() {
+  isAdminPanelOpen = false;
+  const adminPanel = document.getElementById("admin-panel");
+  adminPanel.classList.add("hidden");
+}
+
 function updateAuthUI() {
   currentRole = resolveUserRole(currentUser);
 
@@ -237,13 +256,18 @@ function updateAuthUI() {
   const navUserName = document.getElementById("nav-user-name");
   const navUserRole = document.getElementById("nav-user-role");
 
-  const navAdminLink = document.getElementById("nav-admin-link");
-  const mobileAdminBadge = document.getElementById("mobile-admin-badge");
-  const adminPanel = document.getElementById("admin-panel");
   const adminLevelBadge = document.getElementById("admin-level-badge");
   const adminLoggedEmail = document.getElementById("admin-logged-email");
   const adminRoleDesc = document.getElementById("admin-role-desc");
+  const adminAccessGate = document.getElementById("admin-access-gate");
+  const adminGateTitle = document.getElementById("admin-gate-title");
+  const adminGateMessage = document.getElementById("admin-gate-message");
+  const btnAdminGateLogin = document.getElementById("btn-admin-gate-login");
+  const btnAdminGateSwitch = document.getElementById("btn-admin-gate-switch");
+  const adminAuthorizedContent = document.getElementById("admin-authorized-content");
   const coAdminManagerBox = document.getElementById("coadmin-manager-box");
+  const btnExportCsv = document.getElementById("btn-export-csv");
+  const btnSyncCloud = document.getElementById("btn-sync-cloud");
 
   const reportAuthGate = document.getElementById("report-auth-gate");
   const reportForm = document.getElementById("report-form");
@@ -257,10 +281,20 @@ function updateAuthUI() {
     userProfileBar.classList.add("hidden");
     userProfileBar.classList.remove("flex");
 
-    navAdminLink.classList.add("hidden");
-    navAdminLink.classList.remove("inline-flex");
-    mobileAdminBadge.classList.add("hidden");
-    adminPanel.classList.add("hidden");
+    // Admin Panel Gate for Guest
+    adminLevelBadge.textContent = "Terkunci â€¢ Tamu";
+    adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-700 text-slate-300";
+    adminLoggedEmail.textContent = "Belum masuk akun";
+    adminRoleDesc.textContent = "Silakan masuk menggunakan akun Admin Utama atau Co-Admin untuk mengakses kendali pengaduan.";
+    adminAccessGate.classList.remove("hidden");
+    adminAuthorizedContent.classList.add("hidden");
+    btnExportCsv.classList.add("hidden");
+    btnSyncCloud.classList.add("hidden");
+
+    adminGateTitle.textContent = "Autentikasi Petugas Diperlukan";
+    adminGateMessage.innerHTML = `Panel ini khusus untuk <strong>Admin Utama (Level 1)</strong> dengan email <code class="text-indigo-300 bg-slate-900 px-1.5 py-0.5 rounded">wongapikapik@gmail.com</code> atau <strong>Co-Admin (Level 2)</strong> yang telah didaftarkan.`;
+    btnAdminGateLogin.classList.remove("hidden");
+    btnAdminGateSwitch.classList.add("hidden");
 
     reportAuthGate.classList.remove("hidden");
     reportForm.classList.add("hidden");
@@ -290,10 +324,11 @@ function updateAuthUI() {
     navUserRole.textContent = "Admin Lv.1";
     navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-600 text-white";
 
-    navAdminLink.classList.remove("hidden");
-    navAdminLink.classList.add("inline-flex");
-    mobileAdminBadge.classList.remove("hidden");
-    adminPanel.classList.remove("hidden");
+    openAdminPanel(false);
+    adminAccessGate.classList.add("hidden");
+    adminAuthorizedContent.classList.remove("hidden");
+    btnExportCsv.classList.remove("hidden");
+    btnSyncCloud.classList.remove("hidden");
 
     adminLevelBadge.textContent = "Level 1 â€¢ Admin Utama";
     adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40";
@@ -305,10 +340,11 @@ function updateAuthUI() {
     navUserRole.textContent = "Co-Admin Lv.2";
     navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-amber-500 text-slate-900";
 
-    navAdminLink.classList.remove("hidden");
-    navAdminLink.classList.add("inline-flex");
-    mobileAdminBadge.classList.remove("hidden");
-    adminPanel.classList.remove("hidden");
+    openAdminPanel(false);
+    adminAccessGate.classList.add("hidden");
+    adminAuthorizedContent.classList.remove("hidden");
+    btnExportCsv.classList.remove("hidden");
+    btnSyncCloud.classList.remove("hidden");
 
     adminLevelBadge.textContent = "Level 2 â€¢ Co-Admin";
     adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40";
@@ -316,13 +352,24 @@ function updateAuthUI() {
     adminRoleDesc.textContent = "Akses operator: Verifikasi laporan warga, ubah status penanganan, dan tetapkan instansi dinas terkait.";
     coAdminManagerBox.classList.add("hidden");
   } else {
+    // Regular logged-in reporter
     navUserRole.textContent = "Warga Pelapor";
     navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded bg-rembang-100 text-rembang-800";
 
-    navAdminLink.classList.add("hidden");
-    navAdminLink.classList.remove("inline-flex");
-    mobileAdminBadge.classList.add("hidden");
-    adminPanel.classList.add("hidden");
+    adminLevelBadge.textContent = "Akses Ditolak â€¢ Warga";
+    adminLevelBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40";
+    adminLoggedEmail.textContent = currentUser.email;
+    adminRoleDesc.textContent = "Akun Anda terdaftar sebagai Warga Pelapor dan tidak memiliki izin petugas.";
+
+    adminAccessGate.classList.remove("hidden");
+    adminAuthorizedContent.classList.add("hidden");
+    btnExportCsv.classList.add("hidden");
+    btnSyncCloud.classList.add("hidden");
+
+    adminGateTitle.textContent = "Akun Anda Tidak Memiliki Akses Petugas";
+    adminGateMessage.innerHTML = `Anda saat ini masuk sebagai <strong>${escapeHtml(currentUser.email)}</strong> (Warga Pelapor). Hanya <strong>Admin Utama</strong> atau <strong>Co-Admin</strong> terdaftar yang dapat membuka tabel kendali.`;
+    btnAdminGateLogin.classList.add("hidden");
+    btnAdminGateSwitch.classList.remove("hidden");
   }
 
   renderAdminReports();
@@ -380,14 +427,12 @@ function initFirebaseSync() {
     onSnapshot(
       qReports,
       async (snapshot) => {
-        useLocalFallback = false;
         if (statusBadge) {
           statusBadge.textContent = "Live Cloud Sync";
           statusBadge.className = "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full";
         }
 
         if (snapshot.empty) {
-          // Seed initial reports if database is empty
           for (const item of INITIAL_REPORTS) {
             await setDoc(doc(db, "reports", item.id), item);
           }
@@ -410,7 +455,6 @@ function initFirebaseSync() {
 }
 
 function activateLocalFallback() {
-  useLocalFallback = true;
   const statusBadge = document.getElementById("firebase-status-badge");
   if (statusBadge) {
     statusBadge.textContent = "Mode Lokal (Offline)";
@@ -428,9 +472,7 @@ function refreshAllViews() {
   renderStats();
   renderReports();
   renderMapMarkers();
-  if (currentRole === "admin" || currentRole === "coadmin") {
-    renderAdminReports();
-  }
+  renderAdminReports();
 }
 
 // ==========================================
@@ -482,15 +524,47 @@ window.removeCoAdmin = async function (email) {
 // ADMIN PANEL TABLE & ACTIONS
 // ==========================================
 function renderAdminReports() {
+  // Update Admin Quick Stats
+  const totalEl = document.getElementById("adm-stat-total");
+  if (totalEl) {
+    totalEl.textContent = reports.length;
+    document.getElementById("adm-stat-urgent").textContent = reports.filter(
+      (r) => (r.urgency === "Darurat" || r.urgency === "Tinggi") && r.status !== "Selesai"
+    ).length;
+    document.getElementById("adm-stat-pending").textContent = reports.filter(
+      (r) => r.status === "Menunggu Verifikasi"
+    ).length;
+    document.getElementById("adm-stat-progress").textContent = reports.filter(
+      (r) => r.status === "Sedang Ditangani"
+    ).length;
+    document.getElementById("adm-stat-resolved").textContent = reports.filter(
+      (r) => r.status === "Selesai"
+    ).length;
+  }
+
   const tbody = document.getElementById("admin-reports-tbody");
   if (!tbody) return;
 
-  if (reports.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">Belum ada data laporan masuk.</td></tr>`;
+  const admSearch = (document.getElementById("admin-search-input")?.value || "").toLowerCase().trim();
+  const admStatus = document.getElementById("admin-status-filter")?.value || "ALL";
+
+  const filtered = reports.filter((rep) => {
+    const matchStatus = admStatus === "ALL" || rep.status === admStatus;
+    const matchQuery =
+      !admSearch ||
+      rep.id.toLowerCase().includes(admSearch) ||
+      rep.title.toLowerCase().includes(admSearch) ||
+      rep.kecamatan.toLowerCase().includes(admSearch) ||
+      (rep.reporter || "").toLowerCase().includes(admSearch);
+    return matchStatus && matchQuery;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">Tidak ada laporan yang sesuai filter admin.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = reports
+  tbody.innerHTML = filtered
     .map((rep) => {
       const isAdminLv1 = currentRole === "admin";
       return `
@@ -507,6 +581,7 @@ function renderAdminReports() {
         <td class="py-3 px-4 align-top">
           <div class="font-semibold text-slate-200">${escapeHtml(rep.reporter)}</div>
           <div class="text-[11px] text-slate-400">${escapeHtml(rep.reporterEmail || "-")}</div>
+          ${rep.phone ? `<div class="text-[11px] text-emerald-400 font-mono mt-0.5">WA: ${escapeHtml(rep.phone)}</div>` : ""}
         </td>
         <td class="py-3 px-4 align-top">
           <input type="text" value="${escapeHtml(rep.agency || "")}" onchange="adminUpdateAgency('${rep.id}', this.value)" class="w-44 rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
@@ -518,14 +593,17 @@ function renderAdminReports() {
             <option value="Selesai" ${rep.status === "Selesai" ? "selected" : ""}>Selesai</option>
           </select>
         </td>
-        <td class="py-3 px-4 align-top text-right whitespace-nowrap space-x-1.5">
+        <td class="py-3 px-4 align-top text-right whitespace-nowrap space-x-1">
+          <button type="button" onclick="openAdminReportDetail('${rep.id}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 font-semibold transition">
+            Detail
+          </button>
           <button type="button" onclick="focusOnMap(${rep.lat}, ${rep.lng})" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold transition">
             Peta
           </button>
           ${
             isAdminLv1
               ? `<button type="button" onclick="adminDeleteReport('${rep.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 font-semibold transition">Hapus</button>`
-              : `<span class="text-[10px] text-slate-500 italic">Lv.2</span>`
+              : `<span class="inline-block px-1.5 text-[10px] text-slate-500 italic">Lv.2</span>`
           }
         </td>
       </tr>
@@ -533,6 +611,32 @@ function renderAdminReports() {
     })
     .join("");
 }
+
+window.openAdminReportDetail = function (id) {
+  const rep = reports.find((r) => r.id === id);
+  if (!rep) return;
+
+  document.getElementById("adm-modal-id").textContent = `${rep.id} â€¢ ${rep.status}`;
+  document.getElementById("adm-modal-title").textContent = rep.title;
+  document.getElementById("adm-modal-body").innerHTML = `
+    ${rep.photo ? `<img src="${rep.photo}" alt="Foto Bukti" class="w-full h-44 object-cover rounded-xl border border-slate-200" />` : ""}
+    <div class="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+      <div><span class="text-slate-400 block">Kecamatan / Desa:</span><strong class="text-slate-800">Kec. ${escapeHtml(rep.kecamatan)}, ${escapeHtml(rep.desa)}</strong></div>
+      <div><span class="text-slate-400 block">Kategori &amp; Urgensi:</span><strong class="text-slate-800">${escapeHtml(rep.category)} (${escapeHtml(rep.urgency)})</strong></div>
+      <div><span class="text-slate-400 block">Pelapor:</span><strong class="text-slate-800">${escapeHtml(rep.reporter)} (${escapeHtml(rep.reporterEmail || "-")})</strong></div>
+      <div><span class="text-slate-400 block">No. WhatsApp:</span><strong class="text-emerald-700 font-mono">${escapeHtml(rep.phone || "Tidak dicantumkan")}</strong></div>
+      <div class="col-span-2"><span class="text-slate-400 block">Koordinat GPS:</span><span class="font-mono text-slate-700">${rep.lat}, ${rep.lng}</span></div>
+    </div>
+    <div>
+      <span class="font-bold text-slate-800 block mb-1">Kronologi Lengkap:</span>
+      <p class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 leading-relaxed">${escapeHtml(rep.description)}</p>
+    </div>
+  `;
+
+  const modal = document.getElementById("admin-detail-modal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+};
 
 window.adminUpdateStatus = async function (id, newStatus) {
   if (currentRole !== "admin" && currentRole !== "coadmin") return;
@@ -585,6 +689,34 @@ window.adminDeleteReport = async function (id) {
     console.warn("Hapus laporan tersimpan lokal:", err.message);
   }
 };
+
+function exportReportsToCsv() {
+  if (currentRole !== "admin" && currentRole !== "coadmin") return;
+  const headers = ["ID Tiket", "Waktu", "Judul", "Kategori", "Urgensi", "Kecamatan", "Desa", "Pelapor", "Email", "No HP", "Instansi", "Status"];
+  const rows = reports.map((r) => [
+    r.id,
+    r.createdAt || "",
+    `"${String(r.title || "").replace(/"/g, '""')}"`,
+    `"${String(r.category || "").replace(/"/g, '""')}"`,
+    r.urgency || "",
+    r.kecamatan || "",
+    `"${String(r.desa || "").replace(/"/g, '""')}"`,
+    `"${String(r.reporter || "").replace(/"/g, '""')}"`,
+    r.reporterEmail || "",
+    r.phone || "",
+    `"${String(r.agency || "").replace(/"/g, '""')}"`,
+    r.status || ""
+  ]);
+
+  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `Laporan_Rembang_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 // ==========================================
 // MAP & PUBLIC UI RENDERING
@@ -855,6 +987,36 @@ function translateFirebaseAuthError(code) {
 }
 
 function bindEvents() {
+  // Toggle Admin Panel from Navbar & Footer
+  document.getElementById("btn-toggle-admin-drawer").addEventListener("click", () => {
+    if (isAdminPanelOpen) {
+      closeAdminPanel();
+    } else {
+      openAdminPanel(true);
+    }
+  });
+
+  document.getElementById("btn-footer-admin").addEventListener("click", () => {
+    openAdminPanel(true);
+  });
+
+  document.getElementById("btn-close-admin-panel").addEventListener("click", closeAdminPanel);
+  document.getElementById("btn-admin-gate-login").addEventListener("click", openAuthModal);
+  document.getElementById("btn-admin-gate-switch").addEventListener("click", async () => {
+    await signOut(auth);
+    openAuthModal();
+  });
+
+  document.getElementById("btn-close-adm-modal").addEventListener("click", () => {
+    const modal = document.getElementById("admin-detail-modal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  });
+
+  document.getElementById("btn-export-csv").addEventListener("click", exportReportsToCsv);
+  document.getElementById("admin-search-input").addEventListener("input", renderAdminReports);
+  document.getElementById("admin-status-filter").addEventListener("change", renderAdminReports);
+
   // Auth Modal Triggers
   document.getElementById("btn-open-auth").addEventListener("click", openAuthModal);
   document.getElementById("btn-gate-login").addEventListener("click", openAuthModal);
