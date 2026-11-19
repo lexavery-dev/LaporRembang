@@ -370,7 +370,6 @@ function updateAuthUI() {
   // ====================================================
   // CABANG 2: LOGIKA HALAMAN WARGA (index.html)
   // ====================================================
-  const navAdminDot = document.getElementById("nav-admin-dot");
   const btnGotoAdmin = document.getElementById("btn-goto-admin");
   const reportAuthGate = document.getElementById("report-auth-gate");
   const reportForm = document.getElementById("report-form");
@@ -379,7 +378,6 @@ function updateAuthUI() {
   const btnFilterMine = document.getElementById("btn-filter-mine");
 
   if (!currentUser) {
-    if (navAdminDot) navAdminDot.className = "w-2 h-2 rounded-full bg-slate-400";
     if (btnGotoAdmin) btnGotoAdmin.classList.add("hidden");
     if (reportAuthGate) reportAuthGate.classList.remove("hidden");
     if (reportForm) reportForm.classList.add("hidden");
@@ -412,14 +410,12 @@ function updateAuthUI() {
       navUserRole.textContent = currentRole === "admin" ? "Admin Lv.1" : "Co-Admin Lv.2";
       navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-600 text-white";
     }
-    if (navAdminDot) navAdminDot.className = "w-2 h-2 rounded-full bg-emerald-400";
     if (btnGotoAdmin) btnGotoAdmin.classList.remove("hidden");
   } else {
     if (navUserRole) {
       navUserRole.textContent = "Warga Pelapor";
       navUserRole.className = "inline-block text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rembang-100 text-rembang-800";
     }
-    if (navAdminDot) navAdminDot.className = "w-2 h-2 rounded-full bg-slate-400";
     if (btnGotoAdmin) btnGotoAdmin.classList.add("hidden");
   }
 
