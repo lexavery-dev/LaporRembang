@@ -1,6 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import {
   getAuth,
+  setPersistence,
+  browserLocalPersistence,
   onAuthStateChanged,
   signInWithPopup,
   GoogleAuthProvider,
@@ -42,8 +44,15 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Deteksi halaman aktif (admin.html vs index.html)
-const IS_ADMIN_PAGE = window.location.pathname.toLowerCase().endsWith("admin.html");
+// Pastikan sesi login bertahan di browser setelah refresh/pindah halaman
+setPersistence(auth, browserLocalPersistence).catch((err) => {
+  console.warn("Persistensi auth fallback:", err.message);
+});
+
+// Deteksi halaman aktif (admin.html / /admin vs index.html)
+const IS_ADMIN_PAGE =
+  document.body?.dataset?.page === "admin" ||
+  /\/admin(\.html)?$/i.test(window.location.pathname);
 
 // Data 14 Kecamatan resmi di Kabupaten Rembang beserta koordinat pusatnya
 const KECAMATAN_REMBANG = [
@@ -66,6 +75,7 @@ const KECAMATAN_REMBANG = [
 const STORAGE_KEY = "lapor_rembang_reports_v2";
 const COADMIN_CACHE_KEY = "lapor_rembang_coadmins_v1";
 const UPVOTED_KEY = "lapor_rembang_upvoted_v1";
+const SESSION_CACHE_KEY = "lapor_rembang_user_session_v1";
 
 // Data awal realistis wilayah Kabupaten Rembang (seeding otomatis jika Firestore kosong)
 const INITIAL_REPORTS = [
@@ -204,12 +214,73 @@ let currentUser = null;
 let currentRole = "guest"; // 'guest' | 'user' | 'coadmin' | 'admin'
 let authMode = "login"; // 'login' | 'register'
 let filterOnlyMine = false;
-let justLoggedIn = false; // Flag agar perpindahan/scroll otomatis terjadi saat user baru login
+let justLoggedIn = false;
 
 let map;
 let markersLayer;
 let draftMarker;
 let uploadedPhotoBase64 = "";
+
+// Helper baca/simpan laporan lokal agar selalu sinkron antar halaman & tab
+function getLocalReports() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [...INITIAL_REPORTS];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [...INITIAL_REPORTS];
+  } catch {
+    return [...INITIAL_REPORTS];
+  }
+}
+
+function saveLocalReports(list) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch (err) {
+    console.warn("Gagal menyimpan laporan ke localStorage:", err.message);
+  }
+}
+
+// Gabungkan laporan cloud & lokal agar laporan yang belum tersinkron ke Firestore tidak hilang
+function mergeCloudAndLocalReports(cloudList, localList) {
+  const byId = new Map();
+  localList.forEach((item) => {
+    if (item && item.id) byId.set(item.id, item);
+  });
+  cloudList.forEach((item) => {
+    if (item && item.id) byId.set(item.id, item);
+  });
+  return Array.from(byId.values()).sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0));
+}
+
+// Cache sesi login lokal agar tidak berkedip ke tampilan logout saat halaman di-refresh
+function loadCachedSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedSession(user) {
+  try {
+    if (user && user.email) {
+      localStorage.setItem(
+        SESSION_CACHE_KEY,
+        JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || user.email.split("@")[0]
+        })
+      );
+    } else {
+      localStorage.removeItem(SESSION_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage error
+  }
+}
 
 // Initialize App
 document.addEventListener("DOMContentLoaded", () => {
@@ -219,13 +290,51 @@ document.addEventListener("DOMContentLoaded", () => {
   const cachedCoAdmins = localStorage.getItem(COADMIN_CACHE_KEY);
   coAdminEmails = cachedCoAdmins ? JSON.parse(cachedCoAdmins) : [];
 
+  // Muat data laporan awal dari penyimpanan lokal langsung saat halaman dibuka
+  reports = getLocalReports();
+
+  // Pulihkan tampilan sesi seketika jika pernah login sebelumnya (sambil menunggu verifikasi Firebase)
+  const cachedUser = loadCachedSession();
+  if (cachedUser) {
+    currentUser = cachedUser;
+  }
+
   if (!IS_ADMIN_PAGE) {
     populateKecamatanDropdowns();
     initMap();
   }
 
+  updateAuthUI();
+  refreshAllViews();
   bindEvents();
   initFirebaseSync();
+
+  // Sinkronisasi real-time antar tab/halaman (misal tab warga membuat laporan -> tab admin langsung update)
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      try {
+        reports = JSON.parse(e.newValue);
+        refreshAllViews();
+      } catch {
+        // Ignore malformed JSON
+      }
+    }
+    if (e.key === COADMIN_CACHE_KEY && e.newValue) {
+      try {
+        coAdminEmails = JSON.parse(e.newValue);
+        updateAuthUI();
+      } catch {
+        // Ignore
+      }
+    }
+    if (e.key === SESSION_CACHE_KEY) {
+      const nextSession = loadCachedSession();
+      if (!nextSession && currentUser) {
+        currentUser = null;
+        updateAuthUI();
+      }
+    }
+  });
 });
 
 // ==========================================
@@ -301,7 +410,7 @@ function updateAuthUI() {
     }
 
     if (currentRole === "admin" || currentRole === "coadmin") {
-      // Sukses login sebagai Admin / Co-Admin -> Buka Dashboard Admin!
+      // Sukses login sebagai Admin / Co-Admin -> Langsung buka Panel Kendali Pengaduan!
       if (adminAccessGate) adminAccessGate.classList.add("hidden");
       if (adminAuthorizedContent) adminAuthorizedContent.classList.remove("hidden");
       if (btnExportCsv) btnExportCsv.classList.remove("hidden");
@@ -338,6 +447,8 @@ function updateAuthUI() {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
 
+      // Pastikan memuat data laporan terbaru dari penyimpanan lokal sebelum render tabel
+      reports = mergeCloudAndLocalReports(reports, getLocalReports());
       renderAdminReports();
     } else {
       // Login dengan akun warga biasa di admin.html -> Tolak akses & tampilkan tombol ganti akun
@@ -434,9 +545,11 @@ function updateAuthUI() {
 function initFirebaseSync() {
   const statusBadge = document.getElementById("firebase-status-badge");
 
-  // Listen to Auth State
+  // Listen to Auth State (Firebase otomatis memulihkan sesi yang sudah pernah login)
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+    saveCachedSession(user);
+
     if (user && user.email) {
       try {
         const role = resolveUserRole(user);
@@ -489,16 +602,35 @@ function initFirebaseSync() {
             : "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full";
         }
 
+        const localList = getLocalReports();
+
         if (snapshot.empty) {
-          for (const item of INITIAL_REPORTS) {
-            await setDoc(doc(db, "reports", item.id), item);
+          // Jika Firestore masih kosong, unggah seluruh laporan lokal/awal ke Firestore
+          reports = localList;
+          saveLocalReports(reports);
+          refreshAllViews();
+          for (const item of reports) {
+            try {
+              await setDoc(doc(db, "reports", item.id), item);
+            } catch {
+              // Ignore if write rule restricted
+            }
           }
           return;
         }
 
-        reports = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+        const cloudList = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        reports = mergeCloudAndLocalReports(cloudList, localList);
+        saveLocalReports(reports);
         refreshAllViews();
+
+        // Dorong laporan lokal yang belum masuk ke Firestore agar ikut tersinkron
+        const cloudIds = new Set(cloudList.map((c) => c.id));
+        for (const localItem of localList) {
+          if (!cloudIds.has(localItem.id)) {
+            setDoc(doc(db, "reports", localItem.id), localItem).catch(() => {});
+          }
+        }
       },
       (err) => {
         console.warn("Firestore offline/permission fallback ke LocalStorage:", err.message);
@@ -514,16 +646,13 @@ function initFirebaseSync() {
 function activateLocalFallback() {
   const statusBadge = document.getElementById("firebase-status-badge");
   if (statusBadge) {
-    statusBadge.textContent = "Mode Lokal (Offline)";
+    statusBadge.textContent = "Mode Lokal (Sinkron Browser)";
     statusBadge.className = IS_ADMIN_PAGE
       ? "text-[11px] font-semibold text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full"
       : "text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full";
   }
-  const saved = localStorage.getItem(STORAGE_KEY);
-  reports = saved ? JSON.parse(saved) : [...INITIAL_REPORTS];
-  if (!saved) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
-  }
+  reports = getLocalReports();
+  saveLocalReports(reports);
   refreshAllViews();
 }
 
@@ -704,7 +833,7 @@ window.adminUpdateStatus = async function (id, newStatus) {
   if (currentRole !== "admin" && currentRole !== "coadmin") return;
   const target = reports.find((r) => r.id === id);
   if (target) target.status = newStatus;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+  saveLocalReports(reports);
   refreshAllViews();
 
   try {
@@ -721,7 +850,7 @@ window.adminUpdateAgency = async function (id, newAgency) {
   if (currentRole !== "admin" && currentRole !== "coadmin") return;
   const target = reports.find((r) => r.id === id);
   if (target) target.agency = newAgency.trim();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+  saveLocalReports(reports);
   refreshAllViews();
 
   try {
@@ -742,7 +871,7 @@ window.adminDeleteReport = async function (id) {
   if (!confirm(`Hapus permanen laporan tiket ${id}?`)) return;
 
   reports = reports.filter((r) => r.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+  saveLocalReports(reports);
   refreshAllViews();
 
   try {
@@ -1090,6 +1219,7 @@ function bindEvents() {
 
   // Ganti akun jika akun warga masuk ke admin.html
   document.getElementById("btn-admin-gate-switch")?.addEventListener("click", async () => {
+    saveCachedSession(null);
     await signOut(auth);
   });
 
@@ -1134,7 +1264,9 @@ function bindEvents() {
   document.getElementById("btn-google-login")?.addEventListener("click", async () => {
     try {
       justLoggedIn = true;
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      currentUser = result.user;
+      saveCachedSession(result.user);
       closeAuthModal();
       updateAuthUI();
     } catch (err) {
@@ -1154,15 +1286,18 @@ function bindEvents() {
       if (submitAuthBtn) submitAuthBtn.disabled = true;
       justLoggedIn = true;
 
+      let cred;
       if (!IS_ADMIN_PAGE && authMode === "register") {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        cred = await createUserWithEmailAndPassword(auth, email, password);
         if (fullName) {
           await updateProfile(cred.user, { displayName: fullName });
         }
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        cred = await signInWithEmailAndPassword(auth, email, password);
       }
 
+      currentUser = cred.user;
+      saveCachedSession(cred.user);
       e.target.reset();
       closeAuthModal();
       updateAuthUI();
@@ -1176,6 +1311,7 @@ function bindEvents() {
 
   // Logout
   document.getElementById("btn-logout")?.addEventListener("click", async () => {
+    saveCachedSession(null);
     await signOut(auth);
     if (IS_ADMIN_PAGE) {
       window.location.href = "index.html";
@@ -1216,6 +1352,8 @@ function bindEvents() {
 
   // Sync / Refresh button in Admin Panel
   document.getElementById("btn-sync-cloud")?.addEventListener("click", () => {
+    reports = mergeCloudAndLocalReports(reports, getLocalReports());
+    saveLocalReports(reports);
     refreshAllViews();
   });
 
@@ -1319,13 +1457,15 @@ function bindEvents() {
     const submitBtn = document.getElementById("btn-submit-report");
     submitBtn.disabled = true;
 
+    // Simpan langsung ke state & localStorage agar sinkron seketika ke halaman Admin
+    reports = [newReport, ...reports.filter((r) => r.id !== newReport.id)];
+    saveLocalReports(reports);
+    refreshAllViews();
+
     try {
       await setDoc(doc(db, "reports", ticketCode), newReport);
     } catch (err) {
-      console.warn("Gagal simpan ke Firestore, menyimpan ke lokal:", err.message);
-      reports.unshift(newReport);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
-      refreshAllViews();
+      console.warn("Laporan tersimpan lokal (Firestore offline/terbatas):", err.message);
     } finally {
       submitBtn.disabled = false;
     }
@@ -1449,7 +1589,7 @@ window.toggleUpvote = async function (id) {
   }
 
   localStorage.setItem(UPVOTED_KEY, JSON.stringify(upvotedIds));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+  saveLocalReports(reports);
   renderReports();
 
   try {
