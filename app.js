@@ -76,7 +76,20 @@ const STORAGE_KEY = "lapor_rembang_reports_v2";
 const COADMIN_CACHE_KEY = "lapor_rembang_coadmins_v1";
 const UPVOTED_KEY = "lapor_rembang_upvoted_v1";
 const SESSION_CACHE_KEY = "lapor_rembang_user_session_v1";
+const SYNC_CHANNEL_NAME = "lapor_rembang_sync";
 const IDB_NAME = "LaporRembangDB";
+
+const syncChannel =
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(SYNC_CHANNEL_NAME) : null;
+
+function broadcastReportsUpdate() {
+  if (!syncChannel) return;
+  try {
+    syncChannel.postMessage({ type: "reports_updated", at: Date.now() });
+  } catch {
+    // Ignore channel errors
+  }
+}
 const IDB_VERSION = 1;
 const IDB_STORE = "reports";
 
@@ -299,16 +312,23 @@ function saveLocalReports(list) {
     console.warn("Gagal menyimpan laporan ke localStorage:", err.message);
   }
   idbSaveReports(list);
+  broadcastReportsUpdate();
 }
 
-// Gabungkan laporan cloud & lokal agar laporan yang belum tersinkron ke Firestore tidak hilang
+// Gabungkan laporan cloud & lokal agar perubahan status dari admin maupun laporan baru tidak hilang
 function mergeCloudAndLocalReports(cloudList, localList) {
   const byId = new Map();
   localList.forEach((item) => {
     if (item && item.id) byId.set(item.id, item);
   });
   cloudList.forEach((item) => {
-    if (item && item.id) byId.set(item.id, item);
+    if (!item || !item.id) return;
+    const existing = byId.get(item.id);
+    if (existing && (existing.updatedAtMs || 0) > (item.updatedAtMs || 0)) {
+      byId.set(item.id, { ...item, ...existing });
+    } else {
+      byId.set(item.id, { ...(existing || {}), ...item });
+    }
   });
   return Array.from(byId.values()).sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0));
 }
@@ -375,6 +395,16 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshAllViews();
   bindEvents();
   initFirebaseSync();
+
+  if (syncChannel) {
+    syncChannel.onmessage = async (event) => {
+      if (event?.data?.type === "reports_updated") {
+        const idbRows = await idbLoadReports();
+        reports = mergeCloudAndLocalReports(idbRows, getLocalReports());
+        refreshAllViews();
+      }
+    };
+  }
 
   // Sinkronisasi real-time antar tab/halaman (misal tab warga membuat laporan -> tab admin langsung update)
   window.addEventListener("storage", (e) => {
@@ -669,7 +699,8 @@ function initFirebaseSync() {
             : "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full";
         }
 
-        const localList = getLocalReports();
+        const idbRows = await idbLoadReports();
+        const localList = mergeCloudAndLocalReports(idbRows, getLocalReports());
 
         if (snapshot.empty) {
           // Jika Firestore masih kosong, unggah seluruh laporan lokal/awal ke Firestore
@@ -898,14 +929,19 @@ window.openAdminReportDetail = function (id) {
 
 window.adminUpdateStatus = async function (id, newStatus) {
   if (currentRole !== "admin" && currentRole !== "coadmin") return;
+  const updatedAtMs = Date.now();
   const target = reports.find((r) => r.id === id);
-  if (target) target.status = newStatus;
+  if (target) {
+    target.status = newStatus;
+    target.updatedAtMs = updatedAtMs;
+  }
   saveLocalReports(reports);
   refreshAllViews();
 
   try {
     await updateDoc(doc(db, "reports", id), {
       status: newStatus,
+      updatedAtMs,
       updatedBy: currentUser?.email || "admin"
     });
   } catch (err) {
