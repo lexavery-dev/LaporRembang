@@ -76,6 +76,65 @@ const STORAGE_KEY = "lapor_rembang_reports_v2";
 const COADMIN_CACHE_KEY = "lapor_rembang_coadmins_v1";
 const UPVOTED_KEY = "lapor_rembang_upvoted_v1";
 const SESSION_CACHE_KEY = "lapor_rembang_user_session_v1";
+const IDB_NAME = "LaporRembangDB";
+const IDB_VERSION = 1;
+const IDB_STORE = "reports";
+
+function openReportsDb() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB tidak tersedia"));
+      return;
+    }
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => {
+      const dbInstance = req.result;
+      if (!dbInstance.objectStoreNames.contains(IDB_STORE)) {
+        const store = dbInstance.createObjectStore(IDB_STORE, { keyPath: "id" });
+        store.createIndex("timestampMs", "timestampMs", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("Gagal membuka IndexedDB"));
+  });
+}
+
+async function idbSaveReports(list) {
+  try {
+    const dbInstance = await openReportsDb();
+    const tx = dbInstance.transaction(IDB_STORE, "readwrite");
+    const store = tx.objectStore(IDB_STORE);
+    store.clear();
+    for (const item of list) {
+      if (item && item.id) store.put(item);
+    }
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    dbInstance.close();
+  } catch (err) {
+    console.warn("IndexedDB write fallback:", err.message);
+  }
+}
+
+async function idbLoadReports() {
+  try {
+    const dbInstance = await openReportsDb();
+    const tx = dbInstance.transaction(IDB_STORE, "readonly");
+    const store = tx.objectStore(IDB_STORE);
+    const allReq = store.getAll();
+    const rows = await new Promise((resolve, reject) => {
+      allReq.onsuccess = () => resolve(allReq.result || []);
+      allReq.onerror = () => reject(allReq.error);
+    });
+    dbInstance.close();
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
 
 // Data awal realistis wilayah Kabupaten Rembang (seeding otomatis jika Firestore kosong)
 const INITIAL_REPORTS = [
@@ -239,6 +298,7 @@ function saveLocalReports(list) {
   } catch (err) {
     console.warn("Gagal menyimpan laporan ke localStorage:", err.message);
   }
+  idbSaveReports(list);
 }
 
 // Gabungkan laporan cloud & lokal agar laporan yang belum tersinkron ke Firestore tidak hilang
@@ -292,6 +352,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Muat data laporan awal dari penyimpanan lokal langsung saat halaman dibuka
   reports = getLocalReports();
+  idbLoadReports().then((idbRows) => {
+    if (idbRows.length > 0) {
+      reports = mergeCloudAndLocalReports(idbRows, reports);
+      saveLocalReports(reports);
+      refreshAllViews();
+    }
+  });
 
   // Pulihkan tampilan sesi seketika jika pernah login sebelumnya (sambil menunggu verifikasi Firebase)
   const cachedUser = loadCachedSession();
